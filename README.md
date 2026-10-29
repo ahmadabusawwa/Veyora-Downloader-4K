@@ -25,19 +25,7 @@
 - **Automatic Subtitles & Thumbnails Archiver**: Embedded and standalone subtitle & thumbnail saving support.
 - **Concurrent Queue Manager**: Real-time download speed tracking, remaining time estimator, and visual progress indicators.
 - **Persistent Settings & History**: Save custom preferences and review download history locally.
-
-### 🇸🇦 العربية
-- **واجهة مستخدم حديثة وعصرية**: تصميم أنيق وجذاب يدعم التنقل المريح والتحويل بين الوضع الداكن والفاتح (Dark/Light UI).
-- **تحميل شامل للوسائط**: دعم التحميل المباشر من YouTube، Vimeo، TikTok ومئات المنصات العالمية الأخرى.
-- **التحكم الكامل بالجودة الفائقة**: خيارات متعددة تتضمن دقة 4K، 1080p، 720p أو اختيار أعلى جودة متاحة تلقائياً.
-- **استخراج الصوت العالي النقاء**: تحويل الفيديوهات إلى صيغ MP3 و M4A مع إمكانية تحديد معدل البت (Bitrate).
-- **تحميل قوائم التشغيل والقنوات الكاملة**: معالجة وتحميل التجميعات والقنوات دفعة واحدة بكل سهولة.
-- **تحميل الترجمات والصور المصغرة تلقائياً**: حفظ الترجمات المدمجة والمستقلة بالإضافة للغلاف والصور المصغرة.
-- **مدير طابور تحميل متزامن متعدد المسارات**: عرض حي لسرعة التحميل، الوقت المتبقي، وشريط التقدم الشفاف.
-- **حفظ محلي للإعدادات وسجل التحميلات**: الاحتفاظ بالتفضيلات وسجل الأنشطة المكتملة تلقائياً.
-
 ---
-
 ### ⚠️ Note: FFmpeg Installation Required
 
 **FFmpeg must be installed before using Veyora Pro.** If FFmpeg is not already installed, follow these steps:
