@@ -3,15 +3,6 @@
 `Python 3.12+` | `CustomTkinter` | `yt-dlp` | `FFmpeg` | `Windows`
 
 **Professional 4K Media Downloader & Transcoding Studio** built with Python 3.12, CustomTkinter, and yt-dlp.
-
----
-
-## 📥 Direct Downloads / التحميل المباشر
-
-- 📦 **[Full Application / النسخة الكاملة (Veyora_Pro.rar ~110 MB)](https://drive.google.com/file/d/1y-eINw2GucsT0Z6GCZMxGevr4C2q_jzG/view?usp=drivesdk)**
-- ⚙️ **[FFmpeg Package / حزمة FFmpeg (ffmpeg-n8.1-latest-win64-gpl-8.1_1.zip)](https://drive.google.com/file/d/1S8V4eKWGlgwpa9IJhvMxOOnabhkXaU85/view?usp=drivesdk)**
-- 📁 **[Google Drive Folder / مجلد المشروع الكامل](https://drive.google.com/drive/folders/16hix807VnmgxUDoD5aY5ecxLYqeFzZ-j)**
-
 ---
 
 ## ✨ Features / المميزات
