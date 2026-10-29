@@ -1,39 +1,102 @@
-# Veyora Downloader 4K 🚀
+# Veyora Pro
 
-`Python 3.12+` | `CustomTkinter` | `yt-dlp` | `FFmpeg` | `Windows`
+**حمّل الفيديوهات، وأنشئ ترجمات مكتوبة محلية بين العربية والإنجليزية.**
 
-**Professional 4K Media Downloader & Transcoding Studio** built with Python 3.12, CustomTkinter, and yt-dlp.
----
+Veyora Pro تطبيق مكتبي مخصص لـ Windows يجمع تنزيل الفيديو والصوت، وتحويل الكلام إلى نص، وترجمته محليًا، وحفظ الترجمة منفصلة أو إضافتها إلى الفيديو.
 
-## ✨ Features / المميزات
+[زيارة الموقع](https://ahmadabusawwa.github.io/Veyora-Downloader-4K/) · [الإصدارات والتنزيل](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases) · [الإبلاغ عن مشكلة](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/issues)
 
-### 🇬🇧 English
-- **Modern Dashboard & Sidebar Navigation**: Sleek user interface supporting both Dark and Light UI modes.
-- **Universal Media Downloading**: Extract and download high-quality media from YouTube, Vimeo, TikTok, and hundreds of other platforms.
-- **Ultra-HD & Quality Control**: Select 4K, 1080p, 720p, or set to automatic highest available resolution.
-- **Audio Extraction**: Convert videos to high-fidelity MP3 or M4A audio with custom bitrate options.
-- **Playlists & Channels Batch Download**: Seamlessly process and download full playlists or entire channel archives in batch mode.
-- **Automatic Subtitles & Thumbnails Archiver**: Embedded and standalone subtitle & thumbnail saving support.
-- **Concurrent Queue Manager**: Real-time download speed tracking, remaining time estimator, and visual progress indicators.
-- **Persistent Settings & History**: Save custom preferences and review download history locally.
----
-### ⚠️ Note: FFmpeg Installation Required
+## تحميل البرنامج
 
-**FFmpeg must be installed before using Veyora Pro.** If FFmpeg is not already installed, follow these steps:
+1. افتح صفحة **Releases** واختر الإصدار الذي تريد تنزيله.
+2. حمّل حزمة Windows المسماة `Veyora-Pro-1.5.0-Windows-x64.zip` عند توفرها ضمن مرفقات الإصدار.
+3. فك ضغط الحزمة في مجلد مستقل.
+4. افتح `Veyora_Pro_1_5_0.exe` من المجلد المستخرج.
 
-1. Open **PowerShell as Administrator**.
-2. Run the following command to install FFmpeg using Winget:
+**احتفظ بجميع الملفات والمجلدات بجانب التطبيق، بما فيها `_internal`.** لا تنقل ملف EXE وحده، ولا تشغّله مباشرة من داخل الملف المضغوط.
 
-```powershell
-winget install --id Gyan.FFmpeg.Shared -e
-```
+الحزمة المحمولة لا تحتاج تثبيت Python. حزمة Windows التي بُنيت باستخدام إعدادات المشروع الجديدة تضم FFmpeg و ffprobe اللازمين للمعالجة. ملفات **Source code** التلقائية في GitHub مخصصة للمصدر وليست حزمة تشغيل البرنامج.
 
-3. Restart PowerShell and verify the installation:
+## المميزات
 
-```powershell
-ffmpeg -version
-```
+- تنزيل الفيديو والصوت من المواقع التي يدعمها yt-dlp ، بحسب توفر المحتوى وقيود الموقع.
+- اختيار جودة الفيديو، بما فيها دقات حتى 4K عندما يوفرها المصدر.
+- استخراج الصوت، وإدارة قائمة تنزيلات مع الإيقاف المؤقت والاستئناف والإلغاء.
+- ترجمة الكلام الإنجليزي إلى ترجمة مكتوبة بالعربية.
+- ترجمة الكلام العربي إلى ترجمة مكتوبة بالإنجليزية.
+- معالجة الكلام وترجمة النص محليًا بعد تنزيل النماذج المطلوبة.
+- حفظ الترجمة كملف SRT مستقل، أو مسار داخل MKV ، أو حرقها داخل صورة MP4.
+- عرض تقدّم الحرق والسرعة والوقت المتبقي التقديري عندما تتوفر بيانات كافية.
+- إعدادات معالجة لتقليل ضغط الذاكرة، مع تشغيل مهمة معالجة ثقيلة واحدة في الوقت.
 
-4. Once installed, launch `Veyora Pro.exe`.
+## اختيار اتجاه الترجمة
 
-**Important:** If `winget` is unavailable, install FFmpeg manually and add its `bin` folder to your system's PATH environment variable.
+فعّل **Download Subtitles**، ثم اختر الاتجاه المطابق للغة صوت الفيديو:
+
+| الخيار | لغة الصوت | لغة الترجمة المكتوبة |
+| --- | --- | --- |
+| Auto-Translate: English -> Arabic | إنجليزية | عربية |
+| Auto-Translate: Arabic -> English | عربية | إنجليزية |
+
+الخياران **Arabic** و**English** دون Auto-Translate يطلبان ترجمة جاهزة من الموقع، ولا ينشئان ترجمة جديدة من الصوت. توفر هذه الترجمات يعتمد على المصدر.
+
+## طرق حفظ الترجمة
+
+| الخيار | النتيجة |
+| --- | --- |
+| separate | ملف SRT منفصل بجانب الفيديو |
+| embed | نسخة MKV بمسار ترجمة يمكن تشغيله أو إخفاؤه |
+| burn | نسخة MP4 والترجمة ظاهرة دائمًا داخل الصورة |
+| both | ملف SRT ونسخة MKV بمسار ترجمة |
+
+التطبيق يحتفظ بالفيديو الأصلي، وقد يحفظ أيضًا تفريغًا بلغة المصدر لإعادة المحاولة. للعربية اختر الملف المنتهي بـ`.ar.srt`، وللإنجليزية اختر `.en.srt`. إذا عرض المشغّل اللغة الخطأ، أضف ملف الترجمة المطلوب يدويًا من قائمة الترجمة في المشغّل.
+
+## أول استخدام
+
+يلزم الإنترنت لتنزيل الفيديوهات ولتنزيل النماذج الناقصة أول مرة:
+
+- نموذج ترجمة إنجليزي→عربي: نحو **84 MiB**.
+- نموذج ترجمة عربي→إنجليزي: نحو **78 MiB**.
+- نماذج التعرف على الكلام تُنزّل عند الحاجة إن لم تكن محفوظة. الصوت العربي يستخدم نموذج كلام متعدد اللغات، وقد يتطلب تنزيلًا إضافيًا.
+
+بعد توفر النماذج، يعمل التعرف على الكلام وترجمة النص محليًا. تبقى النماذج محفوظة للاستخدام التالي، ولا يلزم تنزيلها مع كل فيديو.
+
+تُحفظ بيانات التطبيق عادة في `%USERPROFILE%\.veyora`، بما فيها الإعدادات والسجل والنماذج والتفريغات المخبأة.
+
+## المتطلبات والاستخدام
+
+- Windows 10 أو Windows 11 بنسخة 64-bit.
+- مساحة متاحة للفيديو الأصلي، والنسخة المعالجة، والنماذج والملفات المؤقتة.
+- ذاكرة ووقت معالجة يتناسبان مع دقة الفيديو ومدته؛ فيديوهات 4K أثقل من 1080p.
+- مشغّل فيديو يدعم ملفات الترجمة، مثل VLC ، للمشاهدة.
+
+حرق الترجمة يعيد ترميز الصورة وقد يستغرق وقتًا طويلًا. إضافة مسار ترجمة باستخدام **embed** تكون عادة أسرع. الوقت المتبقي تقديري وقد يتغيّر مع تعقيد المشاهد وحِمل الجهاز. لا يوجد حد ثابت مضمون لاستهلاك RAM.
+
+جودة التعرف والترجمة تختلف حسب اللهجة والضوضاء والمصطلحات. راجع الترجمات قبل استخدامها في محتوى منشور أو عمل يحتاج دقة لغوية.
+
+الاستئناف يعتمد على دعم المصدر وبقاء رابط الوسائط صالحًا. الإلغاء يُرصد بين خطوات المعالجة؛ قد ينتظر الاستدعاء الجاري للنموذج أو بعض عمليات المعالجة حتى يعود التحكم للتطبيق.
+
+## الخصوصية
+
+المعالجة المحلية للكلام والنص لا تستخدم خدمة ترجمة Google. تنزيل الوسائط يتصل بمواقعها، وتنزيل النماذج يتصل بمستضيفي النماذج. استخدام خطوط الموقع المستضافة خارجيًا قد يؤدي إلى اتصالات منفصلة عند زيارة الموقع؛ هذا يختلف عن معالجة الفيديو داخل التطبيق.
+
+## المساعدة والإبلاغ عن مشكلة
+
+افتح Issue وأرفق:
+
+- رقم إصدار التطبيق ونظام Windows.
+- الخطوة التي سبقت المشكلة.
+- نص رسالة الخطأ أو صورة لها.
+- اتجاه الترجمة وطريقة الحفظ إن كانت المشكلة متعلقة بالترجمة.
+
+لا ترفق كلمات مرور أو ملفات cookies أو روابط خاصة أو ملفات شخصية غير لازمة لتشخيص المشكلة.
+
+## حالة التحقق
+
+حزمة المصدر 1.5.0 اجتازت **32 اختبارًا في بيئة Linux**، تشمل معالجة FFmpeg والتقدّم والترجمة النصية المحلية في الاتجاهين. هذا لا يعني تحققًا شاملًا من Windows أو جميع المواقع أو دقة التعرف الصوتي. سكربت Windows يبني حزمة منفصلة ويتحقق من تشغيلها وترجمة النص، مع بقاء تجربة فيديو حقيقي على الجهاز المستهدف خطوة مطلوبة قبل اعتماد الإصدار.
+
+## التبعيات والاستخدام المسؤول
+
+يعتمد التطبيق على أدوات ومكتبات منها yt-dlp و FFmpeg و faster-whisper و CTranslate2 و SentencePiece ونماذج Argos. لكل مكوّن ونموذج شروطه وحقوقه الخاصة؛ لا تمنح هذه الصفحة ترخيصًا لإعادة توزيع مكونات خارجية.
+
+استخدم البرنامج للمحتوى الذي تملك حق تنزيله ومعالجته، والتزم بشروط المواقع وحقوق أصحاب المحتوى.
