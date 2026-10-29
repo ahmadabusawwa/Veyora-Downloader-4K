@@ -1,0 +1,7 @@
+customtkinter>=5.2.0
+yt-dlp>=2025.0.0
+requests>=2.31.0
+mutagen>=1.47.0
+pillow>=10.0.0
+darkdetect>=0.8.0
+certifi>=2023.5.7
