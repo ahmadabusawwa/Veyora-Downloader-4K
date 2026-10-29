@@ -4,33 +4,37 @@
 
 تطبيق مكتبي لـ Windows لتنزيل الفيديو والصوت، وإنشاء ترجمة مكتوبة محلية بين العربية والإنجليزية في الاتجاهين، وحفظها منفصلة أو داخل الفيديو.
 
-[تحميل حزمة Windows 1.5.0](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases/download/1.5.0/Veyora-Pro-1.5.0-Windows-x64.zip) · [الموقع](https://ahmadabusawwa.github.io/Veyora-Downloader-4K/) · [كل الإصدارات](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases) · [الدعم](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/issues)
+[تحميل حزمة Windows 1.5.0](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases/download/1.5.0/Veyora-Pro-1.5.0-Windows-x64.exe) · [الموقع](https://ahmadabusawwa.github.io/Veyora-Downloader-4K/) · [كل الإصدارات](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases) · [الدعم](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/issues)
 
 ## التنزيل والتشغيل
 
-| الحزمة | التفاصيل |
-| --- | --- |
-| الإصدار | 1.5.0 |
-| النظام المستهدف | Windows 10 / 11 — x64 |
-| الملف | `Veyora-Pro-1.5.0-Windows-x64.zip` |
-| الحجم | 302,331,801 بايت — نحو 288.3 MiB |
-| النوع | حزمة ZIP محمولة |
+التحميل الرئيسي هو **ملف EXE** للإصدار 1.5.0:
 
-1. حمّل الحزمة من الرابط أعلاه.
-2. فك الضغط كاملًا في مجلد مستقل.
-3. افتح `Veyora_Pro_1_5_0.exe` من المجلد المستخرج.
-4. أبقِ مجلد `_internal` وكل الملفات المرفقة بجانب التطبيق.
+[تحميل Windows EXE](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases/download/1.5.0/Veyora-Pro-1.5.0-Windows-x64.exe) · [نسخة ZIP المحمولة](https://github.com/ahmadabusawwa/Veyora-Downloader-4K/releases/download/1.5.0/Veyora-Pro-1.5.0-Windows-x64.zip)
 
-لا تنقل EXE وحده، ولا تشغّله من داخل ZIP. حزمة التشغيل الجديدة تضم المتطلبات و FFmpeg/ffprobe ؛ لا تحتاج تثبيت Python أو استخدام PowerShell لتشغيلها. روابط **Source code** التلقائية في GitHub ليست حزمة تشغيل Windows.
+| الملف | الحجم | الاستخدام |
+| --- | --- | --- |
+| `Veyora-Pro-1.5.0-Windows-x64.exe` | 235,247,060 بايت — نحو224.3MiB | نزّل الملف وافتحه واتبع أي إرشادات تظهر. |
+| `Veyora-Pro-1.5.0-Windows-x64.zip` | 302,331,801 بايت — نحو288.3MiB | فك الضغط كاملًا، وافتح التطبيق مع إبقاء `_internal` بجانبه. |
+
+النظام المستهدف Windows10/11 بنسخة64-bit. لا تنقل EXE الخاص بحزمة ZIP وحده، ولا تشغّله من داخل الأرشيف. روابط **Source code** التلقائية ليست حزمة تشغيل Windows.
 
 <details>
-<summary>بصمة الحزمة المنشورة SHA-256</summary>
+<summary>بصمتا SHA-256 للملفين المنشورين</summary>
+
+EXE:
+
+```text
+190a0a124a71432b6a2c03b614e412825be9dbe72f2ec7eef7526e1656d9ca07
+```
+
+ZIP:
 
 ```text
 cd23cacfc15744ebf99ef92d472dde7ad08d300a915369d82481f044c713b1a9
 ```
 
-البصمة والحجم مسجلان ضمن بيانات مرفق GitHub Releases. مطابقة البصمة تتحقق من هوية الملف، وليست تقييمًا مستقلًا لأمانه أو لاختبار تشغيله.
+الحجم والبصمة من بيانات GitHub Releases. مطابقة البصمة تتحقق من هوية الملف، وليست اختبارًا مستقلًا لتشغيله أو أمانه. لم يُشغّل EXE المنشور ضمن مراجعة الموقع.
 </details>
 
 ## المميزات
