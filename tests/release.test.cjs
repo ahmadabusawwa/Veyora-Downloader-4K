@@ -42,3 +42,19 @@ test('unknown digests are hidden rather than retaining the checksum for an older
 test('malformed API payloads do not throw or fabricate a release', () => {
   for (const value of [null, {}, [], { tag_name: '<script>', assets: [] }, { tag_name: '1.5.0', assets: [null] }]) assert.equal(pickRelease(value), null);
 });
+
+test('prefers the correctly named EXE even when ZIP is listed first', () => {
+  const data = fixture();
+  data.assets.push({name:'Veyora-Pro-1.5.0-Windows-x64.exe',size:235247060,state:'uploaded',
+    browser_download_url:`https://github.com/${REPO}/releases/download/1.5.0/Veyora-Pro-1.5.0-Windows-x64.exe`,
+    digest:'sha256:190a0a124a71432b6a2c03b614e412825be9dbe72f2ec7eef7526e1656d9ca07'});
+  const selected=pickRelease(data);
+  assert.equal(selected.format,'EXE');
+  assert.equal(formatSize(selected.size),'224.3 MiB');
+  assert.ok(selected.url.endsWith('.exe'));
+});
+test('falls back to the matching ZIP when the EXE URL is invalid', () => {
+  const data=fixture();
+  data.assets.push({name:'Veyora-Pro-1.5.0-Windows-x64.exe',size:235247060,state:'uploaded',browser_download_url:'https://evil.example/app.exe'});
+  assert.equal(pickRelease(data).format,'ZIP');
+});

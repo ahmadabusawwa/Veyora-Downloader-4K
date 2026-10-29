@@ -16,7 +16,7 @@
       document.querySelectorAll('[data-download]').forEach(link => { link.href = release.url; });
       document.getElementById('release-link').href = release.releaseUrl;
       document.getElementById('release-status').textContent =
-        `الإصدار ${release.version} · الحجم ${api.formatSize(release.size)} · ZIP / x64`;
+        `الإصدار ${release.version} · الحجم ${api.formatSize(release.size)} · ${release.format} / x64`;
       const checksum = document.getElementById('checksum');
       checksum.closest('details').hidden = !release.digest;
       if (release.digest) checksum.textContent = release.digest;
