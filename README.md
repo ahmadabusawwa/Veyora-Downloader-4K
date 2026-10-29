@@ -38,25 +38,23 @@
 
 ---
 
-## 🚀 Installation & Usage / التثبيت والتشغيل
+### ⚠️ Note: FFmpeg Installation Required
 
-### Option 1: Executable Package (النسخة الجاهزة)
-1. Download **`Veyora_Pro.rar`** from the Direct Download link above.
-2. Extract the archive.
-3. Download and place **`FFmpeg`** into the project folder if needed.
-4. Run `Veyora Pro.exe` to launch the dashboard.
+**FFmpeg must be installed before using Veyora Pro.** If FFmpeg is not already installed, follow these steps:
 
-### Option 2: From Source Code (التشغيل من الكود المصدري)
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ahmadabusawwa/Veyora-Downloader-4K
-   cd Veyora-Downloader-4K
-   ```
-2. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the application:
-   ```bash
-   python main.py
-   ```
+1. Open **PowerShell as Administrator**.
+2. Run the following command to install FFmpeg using Winget:
+
+```powershell
+winget install --id Gyan.FFmpeg.Shared -e
+```
+
+3. Restart PowerShell and verify the installation:
+
+```powershell
+ffmpeg -version
+```
+
+4. Once installed, launch `Veyora Pro.exe`.
+
+**Important:** If `winget` is unavailable, install FFmpeg manually and add its `bin` folder to your system's PATH environment variable.
