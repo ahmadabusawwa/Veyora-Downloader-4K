@@ -67,7 +67,11 @@ def quality_review(wave,folder):
             segments=[SimpleNamespace(start=i*2,end=i*2+2,text=text) for i,text in enumerate(parts)]
             grouped=list(sentence_groups(segments))
             started=time.monotonic();contextual=' '.join(provider.translate(s.text) for s in grouped)
-            report['translation'].append(dict(source_parts=parts,baseline=baseline,contextual=contextual,baseline_seconds=baseline_time,contextual_seconds=time.monotonic()-started,reference_ar='لكنها لن تُزهر كما أزهرت في الربيع الماضي' if 'spring' in ' '.join(parts) else 'يرجى تنزيل هذا الفيديو وحفظ الترجمة',engine='unchanged Argos/CTranslate2'))
+            contextual_time=time.monotonic()-started
+            candidate=TranslatorProvider('en','ar')
+            for stage in candidate.stages:stage.length_penalty=1.0
+            started=time.monotonic();candidate_text=' '.join(candidate.translate(s.text) for s in grouped);candidate_time=time.monotonic()-started
+            report['translation'].append(dict(source_parts=parts,baseline=baseline,contextual=contextual,baseline_seconds=baseline_time,contextual_seconds=contextual_time,candidate_length_penalty_1=candidate_text,candidate_seconds=candidate_time,reference_ar='لكنها لن تُزهر كما أزهرت في الربيع الماضي' if 'spring' in ' '.join(parts) else 'يرجى تنزيل هذا الفيديو وحفظ الترجمة',engine='unchanged Argos/CTranslate2'))
         release_translation_models()
         video=folder/'style-source.mp4'
         run_ffmpeg(['-f','lavfi','-i','color=c=blue:s=640x360:r=15:d=2','-i',wave,'-t','2','-c:v','libx264','-c:a','aac',video])

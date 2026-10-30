@@ -3,6 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*']
+concurrency:
+  group: windows-review-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
   actions: read

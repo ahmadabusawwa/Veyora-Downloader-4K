@@ -525,6 +525,9 @@ class DownloadEngine:
                     source_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][0],
                     target_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][1],
                     save_original=settings.get('save_original_subtitles', False),
+                    subtitle_style=settings.get('subtitle_style'),
+                    enhance_speech=settings.get('enhance_speech',False),
+                    contextual_translation=settings.get('contextual_translation',False),
                     progress=lambda stage, fraction=None: progress_callback(task_item['id'],
                         {'status': 'translation', 'stage': stage, 'fraction': fraction}))
                 task_item['subtitle_file'] = outputs['subtitle']
@@ -550,7 +553,7 @@ class DownloadEngine:
                     else:
                         text += ' | ETA estimating'
                     progress_callback(task_item['id'], {'status': 'translation', 'stage': text, 'fraction': fraction})
-                burn_subtitles(final_path, subtitle, output, checkpoint, progress=native_burn_progress)
+                burn_subtitles(final_path, subtitle, output, checkpoint, progress=native_burn_progress, **({'style':settings['subtitle_style']} if settings.get('subtitle_style') else {}))
                 task_item['downloaded_file'] = str(output)
             checkpoint()
             completion_callback(task_item['id'], True, "Download completed successfully.")

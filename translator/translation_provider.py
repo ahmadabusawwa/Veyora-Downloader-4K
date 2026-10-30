@@ -55,7 +55,7 @@ class DirectTranslatorProvider:
             for start in range(0, len(tokens), 160):
                 checkpoint()
                 result = translator.translate_batch([tokens[start:start + 160]], beam_size=4,
-                    replace_unknowns=True, max_input_length=0, max_decoding_length=512, length_penalty=.2)[0]
+                    replace_unknowns=True, max_input_length=0, max_decoding_length=512, length_penalty=getattr(self,'length_penalty',.2))[0]
                 checkpoint()
                 output = result.hypotheses[0]
                 if not output or len(output) >= 512:

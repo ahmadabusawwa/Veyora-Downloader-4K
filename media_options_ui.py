@@ -17,6 +17,11 @@ def subtitle_options(app, path):
     window.title(app.t('مظهر الترجمة', 'Subtitle appearance'))
     window.geometry('680x600')
     window.configure(fg_color=app.c['bg'])
+    cancelled = threading.Event()
+    window.bind('<Destroy>',lambda event:cancelled.set() if event.widget is window else None,add='+')
+    def checkpoint():
+        if cancelled.is_set() or app.local_tasks.closed:
+            raise RuntimeError('Cancelled by user')
     style = {**DEFAULT, **app.settings.get('subtitle_style', {})}
     variables = {}
     for row, (key, ar, en) in enumerate([('size_percent','حجم الخط (% من ارتفاع الفيديو)','Font size (% of video height)'), ('outline','سُمك الحدود (عند 720p)','Outline (at 720p)'), ('margin_percent','الهامش (% من ارتفاع الفيديو)','Vertical margin (% of height)'), ('color','لون الخط #RRGGBB','Font color #RRGGBB'), ('position','الموقع: bottom أو top','Position: bottom or top')]):
@@ -58,7 +63,7 @@ def subtitle_options(app, path):
                 from translator.video_renderer import preview_subtitles
                 with tempfile.TemporaryDirectory(prefix='veyora-style-') as root:
                     output = Path(root)/'preview.png'
-                    preview_subtitles(media,output,selected)
+                    preview_subtitles(media,output,selected,checkpoint)
                     with Image.open(output) as img:
                         image = img.copy()
                 def done():
