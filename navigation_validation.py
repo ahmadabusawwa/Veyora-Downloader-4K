@@ -80,7 +80,7 @@ def run_navigation_review(media, cancel_media, report_directory):
     app.selected_folder = str(directory / 'playlist-downloads')
     report = dict(ok=False, version=APP_VERSION, backend='Actual installed GUI, real yt-dlp, local HTTP playlist', errors=[])
     state = dict(phase='warm', index=0, rounds=0, deadline=time.monotonic()+180,
-                 last_tick=None, gaps=[], nav_times=[], baseline=None, settle_until=0)
+                 last_tick=None, gaps=[], nav_times=[], baseline=None, settle_until=0, recorded_phase=None)
 
     def write_close(error=None):
         if error:
@@ -98,6 +98,9 @@ def run_navigation_review(media, cancel_media, report_directory):
     def poll():
         try:
             now = time.monotonic()
+            if state['phase']!=state['recorded_phase']:
+                state['recorded_phase']=state['phase']
+                (directory/'navigation-state.json').write_text(json.dumps(dict(phase=state['phase'],errors=report['errors']),ensure_ascii=True),encoding='utf8')
             if now > state['deadline']:
                 raise RuntimeError('Installed navigation review timeout')
             if state['last_tick'] is not None:

@@ -1974,6 +1974,16 @@ def packaged_self_test(report_path):
     return 0 if report['ok'] else 1
 
 
+def _review_guard(function,*args):
+    try:return function(*args)
+    except Exception:
+        import traceback
+        directory=Path(args[2] if len(args)==3 else args[1])
+        directory.mkdir(parents=True,exist_ok=True)
+        (directory/'review-crash.json').write_text(json.dumps(dict(error=traceback.format_exc()),ensure_ascii=True,indent=2),encoding='utf8')
+        return 1
+
+
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
@@ -1995,7 +2005,7 @@ if __name__ == "__main__":
         sys.exit(review(*sys.argv[2:]))
     if len(sys.argv) == 5 and sys.argv[1] == '--review-navigation':
         from navigation_validation import run_navigation_review
-        sys.exit(run_navigation_review(sys.argv[2], sys.argv[3], sys.argv[4]))
+        sys.exit(_review_guard(run_navigation_review,sys.argv[2],sys.argv[3],sys.argv[4]))
     if len(sys.argv) == 5 and sys.argv[1] == '--review-video':
         from review_validation import run_video_review
         sys.exit(run_video_review(sys.argv[2], sys.argv[3], sys.argv[4]))

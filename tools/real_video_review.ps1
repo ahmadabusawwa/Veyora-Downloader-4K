@@ -41,6 +41,8 @@ if ($LASTEXITCODE) { throw 'Cancellation speech video creation failed' }
 $navArgs=@('--review-navigation',"`"$video`"","`"$cancelVideo`"","`"$OutputDirectory`"")
 $p=Start-Process -FilePath $Application -ArgumentList $navArgs -PassThru
 if (-not $p.WaitForExit(240000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null;throw 'Installed navigation test timeout' }
+Write-Host ('Installed navigation process exit: '+$p.ExitCode)
+if (-not (Test-Path (Join-Path $OutputDirectory 'navigation-results.json'))) { throw 'Navigation report missing; inspect review-crash.json and navigation-state.json' }
 $navigation=Get-Content -LiteralPath (Join-Path $OutputDirectory 'navigation-results.json') -Raw | ConvertFrom-Json
 Write-Host ('NAVIGATION_REPORT: '+($navigation | ConvertTo-Json -Depth 10 -Compress))
 if ($p.ExitCode -ne 0 -or -not $navigation.ok) { throw ('Installed navigation/playlist test failed: '+($navigation.errors -join '; ')) }

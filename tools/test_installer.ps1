@@ -44,7 +44,10 @@ Copy-Item -LiteralPath $selfReport -Destination (Join-Path $PSScriptRoot '..\ins
 $reviewSettings=[IO.File]::ReadAllBytes((Join-Path $data 'settings.json'))
 try {
  & (Join-Path $PSScriptRoot 'real_video_review.ps1') -Application "$install\Veyora-Pro.exe" -ConfigDirectory $data -OutputDirectory (Join-Path $PSScriptRoot '..\real-video-review')
-} finally { [IO.File]::WriteAllBytes((Join-Path $data 'settings.json'),$reviewSettings) }
+} finally {
+ [IO.File]::WriteAllBytes((Join-Path $data 'settings.json'),$reviewSettings)
+ if (Test-Path (Join-Path $data 'logs')) { Copy-Item (Join-Path $data 'logs') (Join-Path $PSScriptRoot '..\real-video-review\runtime-logs') -Recurse -Force }
+}
 $p=Start-Process -FilePath "$install\unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait
 if ($p.ExitCode -ne 0) { throw 'Uninstall failed' }
 if ((Get-FileHash "$data\settings.json").Hash -ne $before.Hash) { throw 'Settings changed' }
