@@ -67,6 +67,12 @@ class Transcriber:
                     progress(f'Downloading missing speech model {self.model_size} (first use only)', None)
                     _model = WhisperModel(self.model_size, local_files_only=False, **options)
                 _model_key = key
+                audit = os.environ.get('VEYORA_REVIEW_AUDIT_DIR')
+                if audit:
+                    directory = Path(audit)
+                    directory.mkdir(parents=True, exist_ok=True)
+                    with (directory / 'speech-loads.jsonl').open('a', encoding='utf8') as out:
+                        out.write(json.dumps(dict(pid=os.getpid(), model=self.model_size, event='speech_model_loaded')) + '\n')
             checkpoint()
             progress(f'Recognizing {self.language} speech on CPU', 0)
             target_lang = None if self.language == 'auto' else self.language

@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Setup)
 $ErrorActionPreference='Stop'
 if ($env:CI -ne 'true') { throw 'Run only on an isolated disposable Windows CI worker.' }
-$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{2C64AD91-899D-44ED-BDC8-77AA65AB119F}_is1'
+$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{9A49F650-703B-4B27-A053-964BE220E4AA}_is1'
 if (Test-Path $existing) { throw 'Existing Veyora installation detected; refusing to alter it.' }
 $root=Join-Path $env:RUNNER_TEMP ('veyora-install-test-'+[guid]::NewGuid())
 $install=Join-Path $root 'application'
@@ -17,6 +17,13 @@ if (-not $env:VEYORA_TEST_MODELS -or -not (Test-Path -LiteralPath $env:VEYORA_TE
 }
 Copy-Item -Path (Join-Path $env:VEYORA_TEST_MODELS '*') -Destination (Join-Path $data 'models') -Recurse -Force
 $env:HF_HUB_OFFLINE='1'
+$legacy='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{2C64AD91-899D-44ED-BDC8-77AA65AB119F}_is1'
+if (Test-Path $legacy) { throw 'Unexpected pre-existing legacy app on the disposable worker' }
+$oldInstall=Join-Path $root 'previous-application'
+$oldSetup=Join-Path $PSScriptRoot '..\backups\Veyora-Pro-Setup-2.0.1-previous.exe'
+$p=Start-Process -FilePath (Resolve-Path $oldSetup) -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$oldInstall`"") -PassThru -Wait
+if ($p.ExitCode -ne 0) { throw 'Previous version backup installation failed' }
+$oldHash=Get-FileHash "$oldInstall\Veyora-Pro.exe"
 $before=Get-FileHash (Join-Path $data 'settings.json')
 foreach ($attempt in 1,2) {
  $p=Start-Process -FilePath (Resolve-Path $Setup) -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$install`"") -PassThru -Wait
@@ -39,5 +46,9 @@ $p=Start-Process -FilePath "$install\unins000.exe" -ArgumentList @('/VERYSILENT'
 if ($p.ExitCode -ne 0) { throw 'Uninstall failed' }
 if ((Get-FileHash "$data\settings.json").Hash -ne $before.Hash) { throw 'Settings changed' }
 foreach ($name in @('history.json','models\sentinel')) { if (-not (Test-Path "$data\$name")) { throw "Lost user file: $name" } }
-Write-Host "PASS: install, same-version reinstall, packaged GUI, six translation models, SRT/MP4 rendering, uninstall, data preservation. Evidence: $root"
+if (-not (Test-Path "$oldInstall\Veyora-Pro.exe") -or (Get-FileHash "$oldInstall\Veyora-Pro.exe").Hash -ne $oldHash.Hash -or -not (Test-Path $legacy)) { throw 'The review installer/uninstaller changed the previous installed version' }
+$p=Start-Process -FilePath "$oldInstall\unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait
+if ($p.ExitCode -ne 0) { throw 'Disposable previous-version cleanup failed' }
+Write-Host 'PASS: previous Setup backup, side-by-side install, unchanged previous EXE hash, cached navigation, real playlist downloads, real speech translation, 20 minimize/restore cycles, cancellation, uninstall, preserved data.'
+
 # Cross-version migration, installer cancellation and power-loss recovery need separate Windows runs.

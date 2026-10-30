@@ -44,4 +44,4 @@ if (-not $iscc) {
 } else { $path=$iscc.Source }
 & $path packaging/installer.iss
 if ($LASTEXITCODE) { throw 'Inno Setup failed' }
-Write-Host 'Review artifact: dist\setup\Veyora-Pro-Setup-2.0.1.exe. No release was published.'
+Write-Host 'Review artifact: dist\setup\Veyora-Pro-Setup-2.0.2.exe. No release was published.'

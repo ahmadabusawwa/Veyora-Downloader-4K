@@ -231,7 +231,7 @@ def test_side_translation_button_runs_and_ui_keeps_ticking(monkeypatch, tmp_path
         generate_srt([SimpleNamespace(start=1, end=2, text='مرحبا بالعالم')], source)
         app.selected_folder = str(tmp_path / 'out')
         app.show_tab('Translation')
-        widgets = list(descendants(app.content_frame))
+        widgets = list(descendants(app.pages.pages[app.active_tab]['host']))
         entry = next(w for w in widgets if isinstance(w, ctk.CTkEntry))
         entry.insert(0, str(source))
         menus = [w for w in widgets if isinstance(w, ctk.CTkOptionMenu)]
@@ -283,7 +283,7 @@ def test_busy_feedback_cancel_and_navigation(monkeypatch, tmp_path):
         ticks.append(time.monotonic())
         app.after(20, tick)
     def local_buttons():
-        return [w for w in descendants(app.content_frame) if isinstance(w, ctk.CTkButton)]
+        return [w for w in descendants(app.pages.pages[app.active_tab]['host']) if isinstance(w, ctk.CTkButton)]
     def pump(seconds):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
@@ -293,7 +293,7 @@ def test_busy_feedback_cancel_and_navigation(monkeypatch, tmp_path):
         source = tmp_path / 'input.mp4'
         source.write_bytes(b'fixture; backend is controlled for UI regression')
         app.show_tab('Translation')
-        entry = next(w for w in descendants(app.content_frame) if isinstance(w, ctk.CTkEntry))
+        entry = next(w for w in descendants(app.pages.pages[app.active_tab]['host']) if isinstance(w, ctk.CTkEntry))
         entry.insert(0, str(source))
         buttons = local_buttons()
         start = next(w for w in buttons if w.cget('text') == app.t('بدء المعالجة', 'Start processing'))

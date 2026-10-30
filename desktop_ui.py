@@ -37,6 +37,8 @@ from main import (
     open_folder_in_explorer,
     selected_subtitle_language,
 )
+from local_tasks import LocalTaskManager
+from page_controller import PageController
 from ui_icons import icon
 from runtime_support import LatestProgress, friendly_error
 
@@ -285,8 +287,9 @@ class DesktopApp(VeyoraApp):
                 "link",
             )
         }
-        self._local_cancel = threading.Event()
-        self._local_running = False
+        self.local_tasks = LocalTaskManager()
+        self.pages = PageController(self)
+        self._local_views = {}
         self._card_percent_labels = {}
         self._card_status_labels = {}
         self._layout_narrow = None
@@ -409,7 +412,11 @@ class DesktopApp(VeyoraApp):
 
         def tick():
             nonlocal previous_wall, previous_cpu
+            if getattr(self, "_closing", False):
+                return
             try:
+                if self.state() == "iconic" or self.active_tab != "Dashboard":
+                    return
                 memory = _memory_megabytes()
                 label = getattr(self, "memory_label", None)
                 if label is not None and label.winfo_exists():
@@ -718,7 +725,7 @@ class DesktopApp(VeyoraApp):
         links = [
             ("video", "⇩", "تحميل فيديو", "Video download", lambda: self.home_mode(False)),
             ("audio", "♫", "تحميل الصوت", "Audio download", lambda: self.home_mode(True)),
-            ("playlists", "☷", "قائمة التشغيل", "Playlists", lambda: self.home_mode(False)),
+            ("playlists", "☷", "قائمة التشغيل", "Playlists", lambda: self.show_tab("Playlist")),
             ("translation", "▣", "الترجمة", "Translation", lambda: self.show_tab("Translation")),
             ("convert", "⇄", "التحويل والصيغ", "Convert & formats", lambda: self.show_tab("Convert")),
             ("files", "▱", "الملفات", "Files", self.open_selected_folder),
@@ -796,22 +803,29 @@ class DesktopApp(VeyoraApp):
         self.content_frame.grid_rowconfigure(0, weight=1)
 
     def toggle_language(self):
-        previous = getattr(self, "active_tab", "Dashboard")
-        self.settings["ui_language"] = "en" if self.is_arabic else "ar"
+        previous = getattr(self, 'active_tab', 'Dashboard')
+        self.settings['ui_language'] = 'en' if self.is_arabic else 'ar'
         SettingsManager.save(self.settings)
-        for widget in (getattr(self, "top", None), getattr(self, "sidebar", None)):
+        self._pause_local_views()
+        self.pages.clear()
+        self._local_views.clear()
+        old_content = self.content_frame
+        old_content.destroy()
+        for widget in (getattr(self, 'top', None), getattr(self, 'sidebar', None)):
             if widget is not None:
                 widget.destroy()
-        for child in list(self.content_frame.winfo_children()):
-            child.destroy()
         self.setup_sidebar()
         self.setup_main_content()
-        self.show_tab(previous if previous in ("Dashboard", "Downloads", "History", "Settings", "Translation", "Convert") else "Dashboard")
+        # Dashboard owns the shared download defaults, but is mounted only once.
+        self.show_tab('Dashboard')
+        if previous != 'Dashboard':
+            self.show_tab(previous)
 
     def _set_active_nav(self, name):
         mapping = {
             "Dashboard": ("video", "Dashboard"),
             "Downloads": ("video", "Downloads"),
+            "Playlist": ("playlists", "Playlist"),
             "Translation": ("translation", "Translation"),
             "Convert": ("convert", "Translation"),
             "History": ("history", "History"),
@@ -822,6 +836,9 @@ class DesktopApp(VeyoraApp):
             if not button.winfo_exists():
                 continue
             selected = key == active[0]
+            if getattr(button, "_veyora_selected", None) == selected:
+                continue
+            button._veyora_selected = selected
             button.configure(
                 fg_color=self.c["blue_soft"] if selected else "transparent",
                 text_color=self.c["text"] if selected else self.c["muted"],
@@ -830,6 +847,9 @@ class DesktopApp(VeyoraApp):
             if not button.winfo_exists():
                 continue
             selected = key == active[1]
+            if getattr(button, "_veyora_selected", None) == selected:
+                continue
+            button._veyora_selected = selected
             button.configure(
                 fg_color=self.c["blue_soft"] if selected else "transparent",
                 text_color=self.c["text"] if selected else self.c["muted"],
@@ -838,29 +858,85 @@ class DesktopApp(VeyoraApp):
             )
 
     def home_mode(self, audio):
+        target = "Audio (Extract)" if audio else "Video"
+        if self.active_tab == "Dashboard" and self.mode_var.get() == target:
+            return
         self.show_tab("Dashboard")
         self.set_mode("Audio (Extract)" if audio else "Video")
         self._set_active_nav("Dashboard")
         if audio and "audio" in getattr(self, "_sidebar_buttons", {}):
             for k, btn in self._sidebar_buttons.items():
                 if btn.winfo_exists():
+                    btn._veyora_selected = k == "audio"
                     btn.configure(
                         fg_color=self.c["blue_soft"] if k == "audio" else "transparent",
                         text_color=self.c["text"] if k == "audio" else self.c["muted"],
                     )
 
-    def show_tab(self, name):
-        self.active_tab = name
-        self._set_active_nav(name)
-        if name in ("Translation", "Convert"):
-            for widget in self.content_frame.winfo_children():
-                widget.destroy()
-            self.clear_download_caches()
-            self.build_local_tab(convert=name == "Convert")
+    def open_selected_folder(self):
+        now = time.monotonic()
+        if now - getattr(self, '_folder_opened_at', -10) < 1:
             return
-        self.clear_download_caches()
-        super().show_tab(name)
+        self._folder_opened_at = now
+        folder = self.selected_folder
+        threading.Thread(target=open_folder_in_explorer, args=(folder,), daemon=True, name='open-folder').start()
+
+    def build_playlist_tab(self):
+        from playlist_page import build_playlist_page
+        build_playlist_page(self)
+
+    def show_playlist_selector(self, url, info):
+        self.show_tab('Playlist')
+        self._playlist_accept(info, url)
+
+    def _pause_local_views(self):
+        for view in self._local_views.values():
+            view['pause']()
+
+    def show_tab(self, name):
+        builders = dict(Dashboard=self.build_dashboard_tab, Downloads=self.build_downloads_tab,
+            History=self.build_history_tab, Settings=self.build_settings_tab,
+            Translation=lambda: self.build_local_tab(False), Convert=lambda: self.build_local_tab(True),
+            Playlist=self.build_playlist_tab)
+        if name not in builders:
+            raise ValueError('Unknown page: ' + name)
+        if not self.pages.show(name, builders[name]):
+            return
         self._set_active_nav(name)
+        if name == 'Dashboard' and getattr(self, '_pending_preview', None) is not None:
+            pending, self._pending_preview = self._pending_preview, None
+            self.show_preview(pending)
+        if name in ('Dashboard', 'Downloads'):
+            self.render_download_items()
+        if name == "History":
+            self._history_refresh()
+        self._refresh_local_tasks(force=True)
+
+    @property
+    def _local_running(self):
+        return self.local_tasks.busy
+
+    @property
+    def _local_status(self):
+        task = self.local_tasks.snapshot()
+        return (task.stage, task.fraction) if task else ('', None)
+
+    @property
+    def _local_result(self):
+        task = self.local_tasks.snapshot()
+        return task.result if task else None
+
+    @property
+    def _local_error(self):
+        task = self.local_tasks.snapshot()
+        return task.error if task else None
+
+    def _refresh_local_tasks(self, force=False):
+        view = self._local_views.get(getattr(self, 'active_tab', ''))
+        if view and self.state() != 'iconic':
+            view['render'](force)
+        elif view:
+            view['pause']()
 
     def set_mode(self, mode):
         if hasattr(self, "mode_var"):
@@ -2016,6 +2092,7 @@ class DesktopApp(VeyoraApp):
 
     def show_preview(self, info):
         if self.active_tab != "Dashboard":
+            self._pending_preview = info
             return
         if not info or info.get("error"):
             self.preview_title.configure(text=self.t("تعذر تحليل الرابط", "Could not analyze the link"))
@@ -2384,6 +2461,8 @@ class DesktopApp(VeyoraApp):
         self.render_download_items()
 
     def _refresh_filter_pills(self):
+        if self.active_tab != "Downloads":
+            return
         all_tasks = self.queue_manager.get_tasks_by_status()
         counts = {
             "all": len(all_tasks),
@@ -2497,78 +2576,8 @@ class DesktopApp(VeyoraApp):
         self.render_download_items()
 
     def build_history_tab(self):
-        frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        frame.grid(row=0, column=0, sticky="nsew", padx=18, pady=14)
-        frame.grid_columnconfigure(0, weight=1)
-        frame.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(
-            frame,
-            text=self.t("◷  سجل التنزيلات", "Download history"),
-            font=("Segoe UI", 24, "bold"),
-            text_color=self.c["text"],
-        ).grid(row=0, column=0, pady=(4, 10), sticky="w")
-
-        scroll = ctk.CTkScrollableFrame(
-            frame,
-            fg_color=self.c["panel"],
-            corner_radius=14,
-            border_width=1,
-            border_color=self.c["edge"],
-            scrollbar_button_color=self.c["edge"],
-            scrollbar_button_hover_color=self.c["blue"],
-        )
-        scroll.grid(row=1, column=0, sticky="nsew")
-        scroll.grid_columnconfigure(0, weight=1)
-        items = HistoryManager.load()
-        if not items:
-            ctk.CTkLabel(
-                scroll,
-                text=self.t("لا يوجد سجل تنزيلات بعد.", "No download history yet."),
-                text_color=self.c["muted"],
-                font=("Segoe UI", 13),
-            ).grid(row=0, column=0, pady=50)
-            return
-        for index, item in enumerate(items):
-            row = ctk.CTkFrame(scroll, fg_color=self.c["bg_soft"], corner_radius=10)
-            row.grid(row=index, column=0, sticky="ew", padx=8, pady=4)
-            row.grid_columnconfigure(1, weight=1)
-            title = str(item.get("title", "Unknown"))
-            ctk.CTkLabel(
-                row,
-                text=title,
-                font=("Segoe UI", 13, "bold"),
-                text_color=self.c["text"],
-                anchor="w",
-                justify="left",
-                wraplength=620,
-            ).grid(row=0, column=0, columnspan=2, padx=14, pady=(10, 2), sticky="ew")
-            detail = "  •  ".join(
-                part
-                for part in (
-                    str(item.get("time", "")),
-                    str(item.get("platform", "")),
-                    self.t("مكتمل", "Completed"),
-                )
-                if part
-            )
-            ctk.CTkLabel(
-                row,
-                text=detail,
-                text_color=self.c["muted"],
-                font=("Segoe UI", 10),
-                anchor="w",
-            ).grid(row=1, column=0, padx=14, pady=(0, 2), sticky="ew")
-            path = item.get("file_path")
-            if path and Path(path).exists():
-                self.ghost_button(
-                    row,
-                    self.t("إظهار الملف", "Show in folder"),
-                    lambda p=path: open_file_in_explorer(p),
-                    fg_color=self.c["panel2"],
-                    width=118,
-                    height=28,
-                    font=("Segoe UI", 10),
-                ).grid(row=2, column=0, padx=14, pady=(2, 10), sticky="w")
+        from history_page import build_history_page
+        build_history_page(self)
 
     def build_settings_tab(self):
         scroll = ctk.CTkScrollableFrame(
@@ -2847,7 +2856,9 @@ class DesktopApp(VeyoraApp):
             anchor="w",
         ).grid(row=1, column=0, padx=24, pady=(0, 14), sticky="w")
 
-        path = ctk.StringVar()
+        kind = "Convert" if convert else "Translation"
+        form = self.local_tasks.form(kind)
+        path = ctk.StringVar(value=form.get("path", ""))
         path_entry = ctk.CTkEntry(
             card,
             textvariable=path,
@@ -2880,9 +2891,15 @@ class DesktopApp(VeyoraApp):
         )
         choose_button.grid(row=3, column=0, pady=8)
 
-        src = ctk.StringVar(value=self._source_labels()[0])
-        dst = ctk.StringVar(value=self._target_labels()[0])
-        mode = ctk.StringVar(value="MP4" if convert else self._subtitle_mode_display_values()[0])
+        src = ctk.StringVar(value=self._label_for_lang(form.get('source', 'auto'), allow_auto=True))
+        dst = ctk.StringVar(value=self._label_for_lang(form.get('target', 'ar'), allow_auto=False))
+        mode = ctk.StringVar(value=form.get('mode', 'MP4') if convert else self._subtitle_mode_to_display(form.get('mode', 'separate')))
+        def save_form(*_):
+            self.local_tasks.save_form(kind, path=path.get(), source=self._lang_code(src.get()),
+                target=self._lang_code(dst.get()), mode=mode.get() if convert else self._subtitle_mode_from_display(mode.get()))
+        for variable in (path, src, dst, mode):
+            variable.trace_add('write', save_form)
+        save_form()
         menus = ctk.CTkFrame(card, fg_color="transparent")
         menus.grid(row=4, column=0, padx=24, pady=10)
         option_widgets = []
@@ -2911,6 +2928,7 @@ class DesktopApp(VeyoraApp):
             ),
             text_color=self.c["muted"],
             font=("Segoe UI", 10),
+            wraplength=720,
         )
         label.grid(row=5, column=0, pady=(2, 8))
         bar = ctk.CTkProgressBar(card, progress_color=self.c["blue"])
@@ -2921,181 +2939,80 @@ class DesktopApp(VeyoraApp):
         buttons.grid(row=7, column=0, padx=24, pady=(0, 18))
 
         animated = [False]
+        last_render = [None]
 
-        def render_progress(stage, fraction=None):
-            if not label.winfo_exists():
+        def pause():
+            bar.stop()
+            animated[0] = False
+            last_render[0] = None
+
+        def render(force=False):
+            if not frame.winfo_exists():
                 return
-            if self.state() == "iconic":
-                bar.stop()
-                animated[0] = False
+            task = self.local_tasks.snapshot(kind)
+            busy = self.local_tasks.busy
+            owns_job = task is not None and task.status in ('running', 'cancelling')
+            cancelling = owns_job and task.status == 'cancelling'
+            key = (task.id if task else None, task.revision if task else None,
+                   int(task.elapsed) if task else 0, busy, self.is_arabic)
+            if not force and key == last_render[0]:
                 return
-            elapsed = time.monotonic() - getattr(self, "_local_started_at", time.monotonic())
-            suffix = ""
-            if self._local_running:
-                minutes, seconds = divmod(int(elapsed), 60)
-                suffix = self.t(f"  •  الوقت المنقضي {minutes:02}:{seconds:02}",
-                                f"  •  Elapsed {minutes:02}:{seconds:02}")
-            label.configure(text=fix_arabic_text(stage) + suffix)
-            if fraction is None and self._local_running:
+            last_render[0] = key
+            start_button.configure(state='disabled' if busy else 'normal',
+                text=self.t('جارٍ الإلغاء…', 'Cancelling…') if cancelling else
+                     self.t('جارٍ المعالجة…', 'Processing…') if owns_job else
+                     self.t('بدء المعالجة', 'Start processing'))
+            cancel_button.configure(state='normal' if owns_job and not cancelling else 'disabled')
+            for widget in (path_entry, choose_button, *option_widgets):
+                widget.configure(state='disabled' if owns_job else 'normal')
+            if not task:
+                return
+            stage = task.stage
+            if task.status == 'failed':
+                stage = friendly_error(RuntimeError(task.error), self.is_arabic, record=False)
+            elif task.status == 'cancelled':
+                stage = 'تم إلغاء المهمة.' if self.is_arabic else 'Task cancelled.'
+            minutes, seconds = divmod(int(task.elapsed), 60)
+            suffix = self.t(f'  •  الوقت المنقضي {minutes:02}:{seconds:02}', f'  •  Elapsed {minutes:02}:{seconds:02}')
+            percentage = f'  •  {task.fraction*100:.1f}%' if task.fraction is not None else ''
+            label.configure(text=fix_arabic_text(stage) + percentage + suffix)
+            if owns_job and task.fraction is None:
                 if not animated[0]:
-                    bar.configure(mode="indeterminate")
+                    bar.configure(mode='indeterminate')
                     bar.start()
                     animated[0] = True
             else:
                 bar.stop()
                 animated[0] = False
-                bar.configure(mode="determinate")
-                bar.set(fraction or 0)
-
-        def deliver_progress(stage, fraction=None):
-            self._local_status = (stage, fraction)
-            view = getattr(self, "_local_progress_view", None)
-            if view:
-                view(stage, fraction)
-
-        self._local_progress_view = render_progress
-        progress = LatestProgress(self._ui_callbacks, deliver_progress)
-
-        def update_controls():
-            if not frame.winfo_exists():
-                return
-            busy = self._local_running
-            cancelling = busy and self._local_cancel.is_set()
-            start_button.configure(state="disabled" if busy else "normal",
-                text=self.t("جارٍ الإلغاء…", "Cancelling…") if cancelling else
-                     self.t("جارٍ المعالجة…", "Processing…") if busy else
-                     self.t("بدء المعالجة", "Start processing"))
-            cancel_button.configure(state="normal" if busy and not cancelling else "disabled")
-            for widget in [path_entry, choose_button, *option_widgets]:
-                widget.configure(state="disabled" if busy else "normal")
-
-        self._local_controls_view = update_controls
-
-        def finish():
-            self._local_running = False
-            controls = getattr(self, "_local_controls_view", None)
-            if controls:
-                controls()
-            view = getattr(self, "_local_progress_view", None)
-            if view:
-                view(*getattr(self, "_local_status", ("", 0)))
-
-        def cancel():
-            if not self._local_running:
-                return
-            self._local_cancel.set()
-            self._local_status = (self.t("جارٍ إلغاء المهمة…", "Cancelling task…"), None)
-            update_controls()
-            render_progress(*self._local_status)
+                bar.configure(mode='determinate')
+                bar.set(task.fraction or 0)
 
         def start():
-            if self._local_running:
+            if self.local_tasks.busy:
                 return
             media = Path(path.get())
-            if not media.is_file():
-                self.notify("اختر ملف وسائط موجودًا", "Choose an existing media file", "error")
+            if not path.get().strip():
+                self.notify('اختر ملف وسائط موجودًا', 'Choose an existing media file', 'error')
                 return
-            source = self._lang_code(src.get())
-            target = self._lang_code(dst.get())
-            if target not in LANGUAGES:
-                target = "ar"
-            output = mode.get() if convert else self._subtitle_mode_from_display(mode.get())
-            self._local_result = None
-            self._local_error = None
-            self._local_running = True
-            self._local_cancel.clear()
-            self._local_started_at = time.monotonic()
-            self._local_status = (self.t("بدأت المهمة، جارٍ التجهيز…", "Task started, preparing…"), None)
-            update_controls()
-            render_progress(*self._local_status)
-            # Capture all UI-owned settings before entering the worker.
-            folder = self.selected_folder
-            save_original = self.settings.get("save_original_subtitles", False)
-            arabic = self.is_arabic
-            saved_text = self.t("تم الحفظ: ", "Saved: ")
+            save_form()
+            values = self.local_tasks.form(kind)
+            self.local_tasks.start(kind, media, self.selected_folder, values['source'], values['target'], values['mode'],
+                save_original=self.settings.get('save_original_subtitles', False))
+            render(True)
 
-            def checkpoint():
-                if self._local_cancel.is_set():
-                    raise RuntimeError("Cancelled by user")
+        def cancel():
+            self.local_tasks.cancel(kind)
+            render(True)
 
-            def worker():
-                try:
-                    if convert:
-                        from translator.video_renderer import run_ffmpeg
-                        import uuid
-
-                        destination = Path(folder) / (
-                            media.stem + "." + uuid.uuid4().hex[:8] + "." + output.lower()
-                        )
-                        arguments = ["-i", str(media)]
-                        arguments += (
-                            ["-vn", "-c:a", "libmp3lame"]
-                            if output == "MP3"
-                            else ["-c:v", "libx264", "-c:a", "aac"]
-                        )
-                        import tempfile
-                        from translator.pipeline import _publish_file
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                        with tempfile.TemporaryDirectory(prefix="veyora-convert-") as work:
-                            temporary = Path(work) / ("converted." + output.lower())
-                            run_ffmpeg(arguments + [str(temporary)], checkpoint)
-                            _publish_file(temporary, destination, checkpoint)
-                        result = {"video": str(destination)}
-                    else:
-                        from translator.worker import run_translation
-
-                        result = run_translation(media, folder,
-                            mode=output,
-                            checkpoint=checkpoint,
-                            progress=progress,
-                            source_lang=source,
-                            target_lang=target,
-                            save_original=save_original,
-                        )
-                    checkpoint()
-                    self._ui_callbacks.put(lambda value=result: setattr(self, "_local_result", value))
-                    progress(saved_text + ", ".join(result.values()), 1)
-                except Exception as exc:
-                    self._ui_callbacks.put(lambda value=str(exc): setattr(self, "_local_error", value))
-                    progress(friendly_error(exc, arabic, self._local_cancel.is_set()), 0)
-                finally:
-                    self._ui_callbacks.put(finish)
-
-            threading.Thread(target=worker, daemon=True, name="local-media").start()
-
-        start_button = self.button(
-            buttons,
-            self.t("بدء المعالجة", "Start processing"),
-            start,
-            width=170,
-        )
-        start_button.pack(side="left", padx=6)
-        cancel_button = self.ghost_button(
-            buttons,
-            self.t("إلغاء", "Cancel"),
-            cancel,
-            fg_color=self.c["panel2"],
-            border_width=1,
-            border_color=self.c["edge"],
-            width=120,
-        )
-        cancel_button.pack(side="left", padx=6)
-        # Stable controls for integration automation; commands remain the real UI path.
+        start_button = self.button(buttons, self.t('بدء المعالجة', 'Start processing'), start, width=170)
+        start_button.pack(side='left', padx=6)
+        cancel_button = self.ghost_button(buttons, self.t('إلغاء', 'Cancel'), cancel,
+            fg_color=self.c['panel2'], border_width=1, border_color=self.c['edge'], width=120)
+        cancel_button.pack(side='left', padx=6)
         self._local_task_controls = dict(path=path, source=src, target=dst, mode=mode,
-            start=start_button, cancel=cancel_button, status=label)
-        update_controls()
-        if self._local_running:
-            render_progress(*getattr(self, "_local_status", ("Working…", None)))
-
-        def tick():
-            if not frame.winfo_exists():
-                return
-            if self._local_running:
-                update_controls()
-                render_progress(*getattr(self, "_local_status", ("Working…", None)))
-            self.after(1000, tick)
-
-        self.after(1000, tick)
+            start=start_button, cancel=cancel_button, status=label, progress=bar)
+        self._local_views[kind] = dict(render=render, pause=pause)
+        render(True)
 
         note = ctk.CTkLabel(
             frame,
@@ -3212,7 +3129,11 @@ class DesktopApp(VeyoraApp):
         self.button(buttons, self.t("حفظ", "Save"), save, width=150).pack(side="left", padx=6)
 
     def show_supported_sites(self):
-        window = ctk.CTkToplevel(self)
+        existing = getattr(self, '_support_window', None)
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            return
+        window = self._support_window = ctk.CTkToplevel(self)
         window.title(self.t("المواقع المدعومة والدعم", "Supported sites & support"))
         window.geometry("640x460")
         window.transient(self)
@@ -3248,7 +3169,8 @@ class DesktopApp(VeyoraApp):
         text.configure(state="disabled")
 
     def _on_close(self):
-        self._local_cancel.set()
+        self.local_tasks.close()
+        self._pause_local_views()
         if getattr(self, "updater", None):
             try:
                 self.updater.cancel.set()

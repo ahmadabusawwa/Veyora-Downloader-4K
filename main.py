@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 # Application version
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.0.2"
 
 LANGUAGES = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}
 TRANSLATION_DIRECTIONS = {'auto': ('en', 'ar'), 'auto-ar': ('en', 'ar'), 'auto-en': ('ar', 'en')}
@@ -261,12 +261,14 @@ SUBTITLE_EXTENSIONS = {'.srt', '.vtt', '.ass', '.ssa', '.sub', '.sbv'}
 # --- DOWNLOAD ENGINE ---
 class DownloadEngine:
     @staticmethod
-    def fetch_metadata(url, cookies_file=""):
+    def fetch_metadata(url, cookies_file="", playlist=False):
         try:
             url = normalize_url(url)
         except ValueError as exc:
             return {'error': str(exc)}
         ydl_opts = metadata_options(url, cookies_file)
+        if playlist:
+            ydl_opts["noplaylist"] = False
         platform = detect_platform(url)
 
         try:
@@ -773,7 +775,7 @@ class VeyoraApp(ctk.CTk):
         self.queue_manager = DownloadQueueManager(self.refresh_ui, self.settings.get("max_concurrent", 3))
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._ui_callbacks = queue.Queue()
-        self.after(100, self._poll_workers)
+        self._worker_poll_id = self.after(100, self._poll_workers)
 
         self.active_filter = "all"
         self.smart_mode = self.settings.get("smart_mode", False)
@@ -806,8 +808,15 @@ class VeyoraApp(ctk.CTk):
             self.after(1800, lambda: self.updater.check(False))
 
     def _poll_workers(self):
+        if getattr(self, "_closing", False):
+            return
         self.queue_manager.poll_ui()
+        if hasattr(self, "_refresh_local_tasks"):
+            self._refresh_local_tasks()
+        deadline = time.monotonic() + .008
         for _ in range(50):
+            if time.monotonic() >= deadline:
+                break
             try:
                 callback = self._ui_callbacks.get_nowait()
             except queue.Empty:
@@ -817,9 +826,12 @@ class VeyoraApp(ctk.CTk):
             except Exception as exc:
                 from runtime_support import friendly_error
                 messagebox.showerror('Veyora', friendly_error(exc, self.settings.get('ui_language') == 'ar'))
-        self.after(100, self._poll_workers)
+        self._worker_poll_id = self.after(100, self._poll_workers)
 
     def _on_close(self):
+        self._closing = True
+        if getattr(self, "_worker_poll_id", None):
+            self.after_cancel(self._worker_poll_id)
         self.queue_manager.shutdown()
         self.destroy()
 
@@ -1883,6 +1895,9 @@ def packaged_self_test(report_path):
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    if len(sys.argv) == 5 and sys.argv[1] == '--review-navigation':
+        from navigation_validation import run_navigation_review
+        sys.exit(run_navigation_review(sys.argv[2], sys.argv[3], sys.argv[4]))
     if len(sys.argv) == 5 and sys.argv[1] == '--review-video':
         from review_validation import run_video_review
         sys.exit(run_video_review(sys.argv[2], sys.argv[3], sys.argv[4]))

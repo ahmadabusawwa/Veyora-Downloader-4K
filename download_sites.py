@@ -114,6 +114,13 @@ def metadata_options(url, cookies_file=''):
 
 
 def entry_page_url(entry, platform):
+    # A generic HTML page can contain several videos with the same webpage_url.
+    # Preserve each actual media entry instead of enqueueing that page repeatedly.
+    if platform == 'Other website / direct media':
+        candidates = [entry.get('url')] + [f.get('url') for f in reversed(entry.get('formats') or [])]
+        for candidate in candidates:
+            if candidate and is_valid_url(candidate):
+                return normalize_url(candidate)
     for key in ('webpage_url', 'original_url', 'url'):
         value = entry.get(key)
         if value and is_valid_url(value):

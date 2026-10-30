@@ -31,11 +31,19 @@ try {
 $ffmpeg=Join-Path $env:VEYORA_FFMPEG_DIR 'ffmpeg.exe'
 $video=Join-Path $fixtures 'فيديو تجريبي.mp4'
 $cancelVideo=Join-Path $fixtures 'فيديو الإلغاء.mp4'
-& $ffmpeg -nostdin -y -v error -f lavfi -i 'color=c=blue:s=320x180:r=15:d=90' -stream_loop -1 -i $wave -t 90 -c:v libx264 -threads 2 -pix_fmt yuv420p -c:a aac $video
+& $ffmpeg -nostdin -y -v error -f lavfi -i 'color=c=blue:s=320x180:r=15:d=180' -stream_loop -1 -i $wave -t 180 -c:v libx264 -threads 2 -pix_fmt yuv420p -c:a aac $video
 if ($LASTEXITCODE) { throw 'Real speech video creation failed' }
 & $ffmpeg -nostdin -y -v error -stream_loop 2 -i $video -t 180 -c copy -metadata comment=independent-cancellation-fixture $cancelVideo
 if ($LASTEXITCODE) { throw 'Cancellation speech video creation failed' }
 @{scope='Local synthetic desktop SAPI speech, no external media';voice=$description;text=$text} | ConvertTo-Json | Set-Content -Encoding utf8NoBOM (Join-Path $fixtures 'NOTICE.json')
+
+# First verify real playlist HTTP downloads and navigation without invoking AI.
+$navArgs=@('--review-navigation',"`"$video`"","`"$cancelVideo`"","`"$OutputDirectory`"")
+$p=Start-Process -FilePath $Application -ArgumentList $navArgs -PassThru
+if (-not $p.WaitForExit(240000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null;throw 'Installed navigation test timeout' }
+$navigation=Get-Content -LiteralPath (Join-Path $OutputDirectory 'navigation-results.json') -Raw | ConvertFrom-Json
+Write-Host ('NAVIGATION_REPORT: '+($navigation | ConvertTo-Json -Depth 10 -Compress))
+if ($p.ExitCode -ne 0 -or -not $navigation.ok) { throw ('Installed navigation/playlist test failed: '+($navigation.errors -join '; ')) }
 
 # Deny outbound traffic by executable before any native speech inference runs.
 # This applies to the frozen child workers too, which use the same executable.
@@ -73,6 +81,7 @@ try {
  $env:HF_HUB_OFFLINE='1'
  $env:VEYORA_CONFIG_DIR=$ConfigDirectory
  $env:VEYORA_REVIEW_NETWORK_BLOCKED='1'
+ $env:VEYORA_REVIEW_AUDIT_DIR=Join-Path $OutputDirectory 'audit'
  # Settings changes are confined to the disposable test user-data directory.
  $settings=Join-Path $ConfigDirectory 'settings.json'
  $before=[IO.File]::ReadAllBytes($settings)
@@ -94,4 +103,5 @@ try {
 } finally {
  foreach ($name in $names) { try { $policy.Rules.Remove($name) } catch { Write-Warning "Could not remove disposable test rule $name" } }
  Remove-Item Env:VEYORA_REVIEW_NETWORK_BLOCKED -ErrorAction SilentlyContinue
+ Remove-Item Env:VEYORA_REVIEW_AUDIT_DIR -ErrorAction SilentlyContinue
 }

@@ -56,11 +56,12 @@ def log_failure(exc, context='processing'):
     logger.error('%s failed', context, exc_info=(type(exc), exc, exc.__traceback__))
 
 
-def friendly_error(exc, arabic=False, cancelled=False):
+def friendly_error(exc, arabic=False, cancelled=False, record=True):
     """Keep diagnostics in logs; never display an arbitrary exception string."""
     if cancelled:
         return 'تم إلغاء المهمة.' if arabic else 'Task cancelled.'
-    log_failure(exc)
+    if record:
+        log_failure(exc)
     text = str(exc).lower()
     if any(x in text for x in ('connect', 'getaddrinfo', 'network', 'timed out', 'timeout',
                                'internet', 'download translation model', 'offline')):

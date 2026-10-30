@@ -37,12 +37,15 @@ def run_video_review(media_path, cancel_media_path, report_directory):
 
     app = DesktopApp()
     app.settings.update(ui_language='en', save_original_subtitles=True)
+    from navigation_validation import PAGES, press_page, memory_bytes, pending_callbacks, widget_count
+    for page in PAGES:
+        press_page(app, page)
     app.selected_folder = str(directory / 'translated')
     app.settings['auto_update_check'] = False
     app.report_callback_exception = lambda *error: report['errors'].append(str(error))
     started = time.monotonic()
     state = dict(phase='starting', last_tick=None, ticks=[], stage=None, recognize_started=None,
-                 cancel_sent=None, window_step=None, window_due=None, window_done=False)
+                 cancel_sent=None, window_step=None, window_due=None, window_done=False, window_cycles=0, nav_steps=0, task_id=None)
     active = [True]
 
     def save_and_close(error=None):
@@ -52,6 +55,10 @@ def run_video_review(media_path, cancel_media_path, report_directory):
         if error:
             report['errors'].append(str(error))
         report['seconds'] = round(time.monotonic() - started, 3)
+        report['page_build_counts'] = dict(app.pages.build_counts)
+        report['local_job_launches'] = app.local_tasks.launch_count
+        report['navigation_during_speech_steps'] = state['nav_steps']
+        report['minimize_restore_cycles'] = state['window_cycles']
         gaps = state['ticks']
         report['ui_timer'] = dict(samples=len(gaps), max_gap_seconds=round(max(gaps, default=0), 4),
             p95_gap_seconds=round(sorted(gaps)[min(len(gaps)-1, int(len(gaps)*.95))], 4) if gaps else None)
@@ -71,6 +78,7 @@ def run_video_review(media_path, cancel_media_path, report_directory):
         controls['target'].set(app._label_for_lang('ar', allow_auto=False))
         controls['mode'].set(app._subtitle_mode_to_display(mode))
         controls['start'].invoke()
+        state['task_id'] = app.local_tasks.snapshot('Translation').id
         if not app._local_running or controls['start'].cget('state') != 'disabled':
             raise RuntimeError('Actual Start command did not acknowledge the job')
 
@@ -136,8 +144,16 @@ def run_video_review(media_path, cancel_media_path, report_directory):
             app.state('normal')
             app.geometry('1280x820')
             report['window_actions'].append(dict(action='restored', while_processing=app._local_running))
-            state.update(window_step=None, window_done=True)
-            report['window_actions_ok'] = all(x['while_processing'] for x in report['window_actions'])
+            state['window_cycles'] += 1
+            if state['window_cycles'] < 20:
+                state.update(window_step='next_cycle', window_due=now+.2)
+            else:
+                state.update(window_step=None, window_done=True)
+                report['window_actions_ok'] = all(x['while_processing'] for x in report['window_actions'])
+        elif state['window_step'] == 'next_cycle' and now >= state['window_due']:
+            app.iconify()
+            state.update(window_step='minimize', window_due=now+.35)
+
 
     def poll():
         if not active[0]:
@@ -164,10 +180,31 @@ def run_video_review(media_path, cancel_media_path, report_directory):
                     app.iconify()
                     state.update(window_step='minimize', window_due=now+.35)
                 windows_actions(now)
+                if app._local_running and state['recognize_started'] is not None and state['nav_steps'] < 140:
+                    name = PAGES[state['nav_steps'] % len(PAGES)]
+                    for _ in range(20):
+                        press_page(app, name)
+                    press_page(app, 'Translation')
+                    app._refresh_local_tasks(force=True)
+                    snapshot = app.local_tasks.snapshot('Translation')
+                    if snapshot.id != state['task_id'] or app.local_tasks.launch_count != 1:
+                        raise RuntimeError('Navigation duplicated/replaced the real translation task')
+                    if app._local_task_controls['path'].get() != str(media_path):
+                        raise RuntimeError('Real input file disappeared while navigating during speech')
+                    if snapshot.status == 'running' and app._local_task_controls['cancel'].cget('state') != 'normal':
+                        raise RuntimeError('Return to translation lost the task cancellation control')
+                    # The disabled real Start command must remain harmless on repeated invocation.
+                    for _ in range(20):
+                        app._local_task_controls['start'].invoke()
+                    state['nav_steps'] += 1
                 if not app._local_running:
-                    if not state['window_done']:
+                    if state['nav_steps'] != 140 or not state['window_done']:
                         raise RuntimeError('Real processing ended before minimize/maximize checks completed')
                     inspect_completed_video()
+                    audit = directory / 'audit' / 'speech-loads.jsonl'
+                    loads = [json.loads(line) for line in audit.read_text(encoding='utf8').splitlines()]
+                    if len(loads) != 1:
+                        raise RuntimeError('Speech model was loaded again during navigation')
                     # A different real file forces fresh speech recognition instead of cache reuse.
                     app.selected_folder = str(directory / 'cancelled-output')
                     launch(cancel_media_path, 'burn')
@@ -178,6 +215,11 @@ def run_video_review(media_path, cancel_media_path, report_directory):
                     if not app._local_running:
                         raise RuntimeError('Cancellation job ended before real recognition was observed')
                     if re.search(r'Recognizing.*speech: \d', stage):
+                        press_page(app, 'Downloads')
+                        press_page(app, 'Settings')
+                        press_page(app, 'Translation')
+                        if app.local_tasks.snapshot('Translation').id != state['task_id']:
+                            raise RuntimeError('Cancellation on return targeted a different task')
                         app._local_task_controls['cancel'].invoke()
                         state['cancel_sent'] = now
                         report['cancel_during_stage'] = stage
@@ -190,6 +232,12 @@ def run_video_review(media_path, cancel_media_path, report_directory):
                         raise RuntimeError('Cancellation did not stop the actual job cleanly: ' + error)
                     if report['cancellation_seconds'] > 12:
                         raise RuntimeError('Cancellation took longer than twelve seconds')
+                    audit = directory / 'audit' / 'speech-loads.jsonl'
+                    loads = [json.loads(line) for line in audit.read_text(encoding='utf8').splitlines()]
+                    if len(loads) != 2 or app.local_tasks.launch_count != 2:
+                        raise RuntimeError('Navigation changed model-load or task-launch counts')
+                    report['actual_speech_model_loads'] = loads
+                    report['cancellation_after_navigation'] = True
                     report['cancellation_ok'] = True
                     save_and_close()
                     return
