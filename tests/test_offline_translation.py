@@ -113,6 +113,11 @@ def test_transcript_cache_isolated_by_source_language(tmp_path):
 
 
 def test_multilingual_speech_model_selection(monkeypatch):
+    # This is a factory-selection unit test, not native ONNX inference.
+    # Avoid native telemetry/session initialization in a mocked test.
+    import sys
+    telemetry = Mock()
+    monkeypatch.setitem(sys.modules, 'onnxruntime', SimpleNamespace(disable_telemetry_events=telemetry))
     import faster_whisper
     import translator.transcription as transcription
     monkeypatch.setattr(transcription, '_model', None)
@@ -130,6 +135,7 @@ def test_multilingual_speech_model_selection(monkeypatch):
     assert factory.call_args.args[0] == 'base.en'
     assert model.transcribe.call_args.kwargs['language'] == 'en'
     assert factory.call_count == 2
+    assert telemetry.call_count == 2
 
 
 def test_unsupported_pair_rejected():

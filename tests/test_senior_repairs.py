@@ -242,6 +242,8 @@ def test_side_translation_button_runs_and_ui_keeps_ticking(monkeypatch, tmp_path
         app.after(20, heartbeat)
         start.invoke()
         assert app._local_running
+        assert start.cget('state') == 'disabled'
+        assert start.cget('text') == app.t('جارٍ المعالجة…', 'Processing…')
         deadline = time.monotonic() + 20
         while app._local_running and time.monotonic() < deadline:
             app.update()
@@ -251,6 +253,76 @@ def test_side_translation_button_runs_and_ui_keeps_ticking(monkeypatch, tmp_path
         assert len(ticks) >= 3
         output = next((tmp_path / 'out').glob('*.srt'))
         assert parse_srt(output)[0].text == 'مرحبا بالعالم'
+    finally:
+        app._on_close()
+
+
+def test_busy_feedback_cancel_and_navigation(monkeypatch, tmp_path):
+    import customtkinter as ctk
+    import main
+    import translator.worker
+    from desktop_ui import DesktopApp
+    entered, calls = threading.Event(), []
+    def slow_job(*args, checkpoint, progress, **kwargs):
+        calls.append(args)
+        entered.set()
+        while True:
+            checkpoint()
+            time.sleep(.02)
+    monkeypatch.setattr(translator.worker, 'run_translation', slow_job)
+    monkeypatch.setitem(main.DEFAULT_SETTINGS, 'auto_update_check', False)
+    app = DesktopApp()
+    errors, ticks = [], []
+    app.report_callback_exception = lambda *args: errors.append(str(args))
+    monkeypatch.setattr(main.messagebox, 'showerror', lambda *a: errors.append(str(a)))
+    def descendants(widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from descendants(child)
+    def tick():
+        ticks.append(time.monotonic())
+        app.after(20, tick)
+    def local_buttons():
+        return [w for w in descendants(app.content_frame) if isinstance(w, ctk.CTkButton)]
+    def pump(seconds):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            app.update()
+            time.sleep(.01)
+    try:
+        source = tmp_path / 'input.mp4'
+        source.write_bytes(b'fixture; backend is controlled for UI regression')
+        app.show_tab('Translation')
+        entry = next(w for w in descendants(app.content_frame) if isinstance(w, ctk.CTkEntry))
+        entry.insert(0, str(source))
+        buttons = local_buttons()
+        start = next(w for w in buttons if w.cget('text') == app.t('بدء المعالجة', 'Start processing'))
+        cancel = next(w for w in buttons if w.cget('text') == app.t('إلغاء', 'Cancel'))
+        assert cancel.cget('state') == 'disabled'
+        app.after(20, tick)
+        start.invoke()
+        start.invoke()  # Repeated clicks must not submit another worker.
+        assert start.cget('state') == 'disabled'
+        pump(.4)
+        assert entered.is_set() and len(calls) == 1
+        app.iconify()
+        pump(.2)
+        app.deiconify()
+        pump(.2)
+        app.show_tab('Dashboard')
+        app.show_tab('Translation')
+        buttons = local_buttons()
+        start = next(w for w in buttons if w.cget('text') == app.t('جارٍ المعالجة…', 'Processing…'))
+        cancel = next(w for w in buttons if w.cget('text') == app.t('إلغاء', 'Cancel'))
+        assert start.cget('state') == 'disabled'
+        cancel.invoke()
+        assert start.cget('text') == app.t('جارٍ الإلغاء…', 'Cancelling…')
+        assert cancel.cget('state') == 'disabled'
+        pump(.5)
+        assert not app._local_running
+        assert start.cget('state') == 'normal'
+        assert cancel.cget('state') == 'disabled'
+        assert not errors and len(ticks) > 5
     finally:
         app._on_close()
 

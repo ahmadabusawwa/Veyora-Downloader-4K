@@ -12,6 +12,8 @@ from .resources import processing_slot
 def _pipeline_worker(media, output, options, cancelled, progress_queue, result, temporary):
     if os.name != 'nt':
         os.setsid()  # FFmpeg children share this job's process group.
+    from performance import configure_worker
+    configure_worker()
     tempfile.tempdir = temporary
 
     def checkpoint():
@@ -75,13 +77,21 @@ def run_translation(media, output, *, checkpoint=lambda: None,
                 name='veyora-translation')
             process.start()
             sending.close()
+            last_update = time.monotonic()
+            last_stage = ('Preparing translation worker', None)
             try:
                 while True:
                     checkpoint()
                     try:
-                        progress(*updates.get_nowait())
+                        last_stage = updates.get_nowait()
+                        progress(*last_stage)
+                        last_update = time.monotonic()
                     except queue.Empty:
                         pass
+                    if time.monotonic() - last_update >= 1:
+                        # Honest heartbeat: elapsed waiting is not completed media.
+                        progress(last_stage[0] + ' | Working…', last_stage[1])
+                        last_update = time.monotonic()
                     if receiving.poll(.1):
                         try:
                             status, payload = receiving.recv()

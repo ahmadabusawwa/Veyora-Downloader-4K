@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 # Application version
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 
 LANGUAGES = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}
 TRANSLATION_DIRECTIONS = {'auto': ('en', 'ar'), 'auto-ar': ('en', 'ar'), 'auto-en': ('ar', 'en')}

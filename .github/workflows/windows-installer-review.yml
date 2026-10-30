@@ -40,14 +40,14 @@ jobs:
           "VEYORA_TEST_MODELS=$(Join-Path $env:VEYORA_CONFIG_DIR 'models')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Actual packaged installation and uninstall checks
         shell: pwsh
-        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.0.exe
+        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.1.exe
       - name: Package portable application
         shell: pwsh
-        run: Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-2.0.0-Windows-x64.zip
+        run: Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-2.0.1-Windows-x64.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Veyora-Pro-2.0-Windows-review
+          name: Veyora-Pro-2.0.1-Windows-review
           path: |
             dist/setup/*.exe
             dist/*.zip

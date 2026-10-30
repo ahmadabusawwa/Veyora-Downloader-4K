@@ -294,7 +294,7 @@ class DesktopApp(VeyoraApp):
         self._status_clock_running = False
         self._syncing_controls = False
         super().__init__()
-        self.title("Veyora Pro 2.0 — Downloader & Translator")
+        self.title(f"Veyora Pro {APP_VERSION} — Downloader & Translator")
         self.geometry("1536x980")
         self.minsize(1080, 760)
         self.configure(fg_color=self.c["bg"])
@@ -2848,14 +2848,15 @@ class DesktopApp(VeyoraApp):
         ).grid(row=1, column=0, padx=24, pady=(0, 14), sticky="w")
 
         path = ctk.StringVar()
-        ctk.CTkEntry(
+        path_entry = ctk.CTkEntry(
             card,
             textvariable=path,
             height=42,
             fg_color=self.c["panel2"],
             border_color=self.c["edge"],
             text_color=self.c["text"],
-        ).grid(row=2, column=0, padx=24, pady=8, sticky="ew")
+        )
+        path_entry.grid(row=2, column=0, padx=24, pady=8, sticky="ew")
 
         def choose():
             value = filedialog.askopenfilename(
@@ -2868,7 +2869,7 @@ class DesktopApp(VeyoraApp):
             if value:
                 path.set(value)
 
-        self.ghost_button(
+        choose_button = self.ghost_button(
             card,
             self.t("اختيار ملف", "Choose file"),
             choose,
@@ -2876,19 +2877,21 @@ class DesktopApp(VeyoraApp):
             border_width=1,
             border_color=self.c["edge"],
             width=180,
-        ).grid(row=3, column=0, pady=8)
+        )
+        choose_button.grid(row=3, column=0, pady=8)
 
         src = ctk.StringVar(value=self._source_labels()[0])
         dst = ctk.StringVar(value=self._target_labels()[0])
         mode = ctk.StringVar(value="MP4" if convert else self._subtitle_mode_display_values()[0])
         menus = ctk.CTkFrame(card, fg_color="transparent")
         menus.grid(row=4, column=0, padx=24, pady=10)
+        option_widgets = []
         for var, values, width in (
             (src, self._source_labels(), 190),
             (dst, self._target_labels(), 190),
             (mode, ["MP4", "MKV", "MP3"] if convert else self._subtitle_mode_display_values(), 210),
         ):
-            ctk.CTkOptionMenu(
+            menu = ctk.CTkOptionMenu(
                 menus,
                 variable=var,
                 values=values,
@@ -2896,7 +2899,9 @@ class DesktopApp(VeyoraApp):
                 fg_color=self.c["panel2"],
                 button_color=self.c["blue_soft"],
                 text_color=self.c["text"],
-            ).pack(side="left", padx=4)
+            )
+            menu.pack(side="left", padx=4)
+            option_widgets.append(menu)
 
         label = ctk.CTkLabel(
             card,
@@ -2915,12 +2920,73 @@ class DesktopApp(VeyoraApp):
         buttons = ctk.CTkFrame(card, fg_color="transparent")
         buttons.grid(row=7, column=0, padx=24, pady=(0, 18))
 
+        animated = [False]
+
         def render_progress(stage, fraction=None):
-            if label.winfo_exists():
-                label.configure(text=fix_arabic_text(stage))
+            if not label.winfo_exists():
+                return
+            if self.state() == "iconic":
+                bar.stop()
+                animated[0] = False
+                return
+            elapsed = time.monotonic() - getattr(self, "_local_started_at", time.monotonic())
+            suffix = ""
+            if self._local_running:
+                minutes, seconds = divmod(int(elapsed), 60)
+                suffix = self.t(f"  •  الوقت المنقضي {minutes:02}:{seconds:02}",
+                                f"  •  Elapsed {minutes:02}:{seconds:02}")
+            label.configure(text=fix_arabic_text(stage) + suffix)
+            if fraction is None and self._local_running:
+                if not animated[0]:
+                    bar.configure(mode="indeterminate")
+                    bar.start()
+                    animated[0] = True
+            else:
+                bar.stop()
+                animated[0] = False
+                bar.configure(mode="determinate")
                 bar.set(fraction or 0)
 
-        progress = LatestProgress(self._ui_callbacks, render_progress)
+        def deliver_progress(stage, fraction=None):
+            self._local_status = (stage, fraction)
+            view = getattr(self, "_local_progress_view", None)
+            if view:
+                view(stage, fraction)
+
+        self._local_progress_view = render_progress
+        progress = LatestProgress(self._ui_callbacks, deliver_progress)
+
+        def update_controls():
+            if not frame.winfo_exists():
+                return
+            busy = self._local_running
+            cancelling = busy and self._local_cancel.is_set()
+            start_button.configure(state="disabled" if busy else "normal",
+                text=self.t("جارٍ الإلغاء…", "Cancelling…") if cancelling else
+                     self.t("جارٍ المعالجة…", "Processing…") if busy else
+                     self.t("بدء المعالجة", "Start processing"))
+            cancel_button.configure(state="normal" if busy and not cancelling else "disabled")
+            for widget in [path_entry, choose_button, *option_widgets]:
+                widget.configure(state="disabled" if busy else "normal")
+
+        self._local_controls_view = update_controls
+
+        def finish():
+            self._local_running = False
+            controls = getattr(self, "_local_controls_view", None)
+            if controls:
+                controls()
+            view = getattr(self, "_local_progress_view", None)
+            if view:
+                view(*getattr(self, "_local_status", ("", 0)))
+
+        def cancel():
+            if not self._local_running:
+                return
+            self._local_cancel.set()
+            self._local_status = (self.t("جارٍ إلغاء المهمة…", "Cancelling task…"), None)
+            update_controls()
+            render_progress(*self._local_status)
 
         def start():
             if self._local_running:
@@ -2936,6 +3002,10 @@ class DesktopApp(VeyoraApp):
             output = mode.get() if convert else self._subtitle_mode_from_display(mode.get())
             self._local_running = True
             self._local_cancel.clear()
+            self._local_started_at = time.monotonic()
+            self._local_status = (self.t("بدأت المهمة، جارٍ التجهيز…", "Task started, preparing…"), None)
+            update_controls()
+            render_progress(*self._local_status)
             # Capture all UI-owned settings before entering the worker.
             folder = self.selected_folder
             save_original = self.settings.get("save_original_subtitles", False)
@@ -2985,25 +3055,40 @@ class DesktopApp(VeyoraApp):
                 except Exception as exc:
                     progress(friendly_error(exc, arabic, self._local_cancel.is_set()), 0)
                 finally:
-                    self._ui_callbacks.put(lambda: setattr(self, "_local_running", False))
+                    self._ui_callbacks.put(finish)
 
             threading.Thread(target=worker, daemon=True, name="local-media").start()
 
-        self.button(
+        start_button = self.button(
             buttons,
             self.t("بدء المعالجة", "Start processing"),
             start,
             width=170,
-        ).pack(side="left", padx=6)
-        self.ghost_button(
+        )
+        start_button.pack(side="left", padx=6)
+        cancel_button = self.ghost_button(
             buttons,
             self.t("إلغاء", "Cancel"),
-            self._local_cancel.set,
+            cancel,
             fg_color=self.c["panel2"],
             border_width=1,
             border_color=self.c["edge"],
             width=120,
-        ).pack(side="left", padx=6)
+        )
+        cancel_button.pack(side="left", padx=6)
+        update_controls()
+        if self._local_running:
+            render_progress(*getattr(self, "_local_status", ("Working…", None)))
+
+        def tick():
+            if not frame.winfo_exists():
+                return
+            if self._local_running:
+                update_controls()
+                render_progress(*getattr(self, "_local_status", ("Working…", None)))
+            frame.after(1000, tick)
+
+        frame.after(1000, tick)
 
         note = ctk.CTkLabel(
             frame,

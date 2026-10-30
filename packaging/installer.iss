@@ -1,4 +1,4 @@
-#define AppVersion "2.0.0"
+#define AppVersion "2.0.1"
 [Setup]
 AppId={{2C64AD91-899D-44ED-BDC8-77AA65AB119F}
 AppName=Veyora Pro
