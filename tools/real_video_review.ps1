@@ -96,8 +96,8 @@ try {
   $result=Join-Path $OutputDirectory 'real-video-results.json'
   if (-not (Test-Path $result)) { throw 'Actual video report was not produced' }
   $report=Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
-  if ($p.ExitCode -ne 0 -or -not $report.ok) { throw ('Actual video validation failed: '+($report.errors -join '; ')) }
   Write-Host ('REAL_VIDEO_REPORT: '+($report | ConvertTo-Json -Depth 12 -Compress))
+  if ($p.ExitCode -ne 0 -or -not $report.ok) { throw ('Actual video validation failed: '+($report.errors -join '; ')) }
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }
 } finally {

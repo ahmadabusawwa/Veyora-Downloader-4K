@@ -80,7 +80,8 @@ def run_video_review(media_path, cancel_media_path, report_directory):
         controls['start'].invoke()
         state['task_id'] = app.local_tasks.snapshot('Translation').id
         if not app._local_running or controls['start'].cget('state') != 'disabled':
-            raise RuntimeError('Actual Start command did not acknowledge the job')
+            current = app.local_tasks.snapshot('Translation')
+            raise RuntimeError('Actual Start command did not acknowledge the job: status=' + str(current.status if current else None) + ', error=' + str(current.error if current else None) + ', button=' + str(controls['start'].cget('state')))
 
     def inspect_completed_video():
         result = getattr(app, '_local_result', None)
@@ -104,6 +105,8 @@ def run_video_review(media_path, cancel_media_path, report_directory):
             raise RuntimeError('Actual MP4 output missing')
         info = get_ffprobe_info(video)
         original = get_ffprobe_info(media_path)
+        if any(c.end > float(original['format']['duration']) + .1 for c in translated):
+            raise RuntimeError('Subtitle timestamp exceeds the actual video duration')
         if abs(float(info['format']['duration']) - float(original['format']['duration'])) > 1:
             raise RuntimeError('Rendered MP4 duration changed')
         if not any(s['codec_type'] == 'video' for s in info['streams']):

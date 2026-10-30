@@ -107,3 +107,51 @@ def test_playlist_button_opens_distinct_page(monkeypatch):
         assert app.pages.build_counts['Playlist'] == 1
     finally:
         app._on_close()
+
+
+def test_return_to_same_page_refreshes_completed_task_before_next_poll(monkeypatch, tmp_path):
+    import main
+    import local_tasks
+    from desktop_ui import DesktopApp
+    finish, entered = threading.Event(), threading.Event()
+    def runner(*args, **kwargs):
+        entered.set()
+        assert finish.wait(3)
+        return {'subtitle': 'finished.srt'}
+    monkeypatch.setattr(local_tasks, 'run_local_job', runner)
+    monkeypatch.setitem(main.DEFAULT_SETTINGS, 'auto_update_check', False)
+    app = DesktopApp()
+    try:
+        app.show_tab('Translation')
+        controls = app._local_task_controls
+        controls['path'].set(str(tmp_path/'video.mp4'))
+        controls['start'].invoke()
+        assert entered.wait(2)
+        assert controls['start'].cget('state') == 'disabled'
+        finish.set()
+        deadline = time.monotonic()+2
+        while app.local_tasks.busy and time.monotonic() < deadline:
+            threading.Event().wait(.005)
+        assert not app.local_tasks.busy
+        # Deliberately do not pump Tk: emulate completion between timer ticks.
+        assert controls['start'].cget('state') == 'disabled'
+        host = app.pages.pages['Translation']['host']
+        app.show_tab('Translation')
+        assert app.pages.pages['Translation']['host'] is host
+        assert controls['start'].cget('state') == 'normal'
+        assert 'finished.srt' in controls['status'].cget('text')
+    finally:
+        finish.set()
+        app._on_close()
+
+
+def test_speech_end_timestamp_is_bounded_without_mutating_segment():
+    from collections import namedtuple
+    from types import SimpleNamespace
+    from translator.transcription import _bound_segment
+    Segment = namedtuple('Segment', 'start end text')
+    original = Segment(179, 182, 'Hello')
+    result = _bound_segment(original, SimpleNamespace(duration=180))
+    assert result.start == 179 and result.end == 180
+    assert original.end == 182
+    assert _bound_segment(Segment(181,182,'outside'), SimpleNamespace(duration=180)) is None

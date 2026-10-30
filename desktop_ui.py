@@ -901,6 +901,9 @@ class DesktopApp(VeyoraApp):
         if name not in builders:
             raise ValueError('Unknown page: ' + name)
         if not self.pages.show(name, builders[name]):
+            # A worker may have completed since the last 100 ms UI tick.
+            # Refresh central state without rebuilding or re-entering navigation.
+            self._refresh_local_tasks()
             return
         self._set_active_nav(name)
         if name == 'Dashboard' and getattr(self, '_pending_preview', None) is not None:

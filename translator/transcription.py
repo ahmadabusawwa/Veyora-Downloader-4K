@@ -11,6 +11,28 @@ _model_key = None
 _model_lock = threading.Lock()
 
 
+def _bound_segment(segment, info):
+    """Whisper's final timestamp can extend beyond the decoded audio."""
+    import math
+    from dataclasses import is_dataclass, replace
+    from types import SimpleNamespace
+    duration = getattr(info, 'duration', 0) or 0
+    if not math.isfinite(duration) or duration <= 0:
+        return segment
+    start, end = max(0, segment.start), min(duration, segment.end)
+    if end <= start:
+        return None
+    if start == segment.start and end == segment.end:
+        return segment
+    if is_dataclass(segment):
+        return replace(segment, start=start, end=end)
+    if hasattr(segment, '_replace'):
+        return segment._replace(start=start, end=end)
+    values = dict(vars(segment))
+    values.update(start=start, end=end)
+    return SimpleNamespace(**values)
+
+
 class Transcriber:
     def __init__(self, model_size=None, device='cpu', language='en'):
         if language not in ('auto', 'en', 'ar', 'tr', 'ko'):
@@ -80,6 +102,9 @@ class Transcriber:
             result = []
             for segment in segments:
                 checkpoint()
+                segment = _bound_segment(segment, info)
+                if segment is None:
+                    continue
                 result.append(segment)
                 duration = getattr(info, 'duration', 0) or 0
                 progress(f'Recognizing {self.language} speech: {segment.end:.0f}s / {duration:.0f}s', min(1, segment.end / duration) if duration else None)
@@ -100,7 +125,9 @@ class Transcriber:
                     for segment in retry_segments:
                         checkpoint()
                         if getattr(segment, 'text', '').strip():
-                            result.append(segment)
+                            segment = _bound_segment(segment, retry_info)
+                            if segment is not None:
+                                result.append(segment)
                     if retry_info is not None:
                         info = retry_info
                 except TypeError:

@@ -34,7 +34,7 @@ def detect_text_language(text: str) -> str | None:
 
 
 def _cache_key(media, checkpoint, source_lang='en'):
-    prefix = ('veyora-base-v2-' + source_lang + '\0').encode('ascii')
+    prefix = ('veyora-base-v3-bounded-' + source_lang + '\0').encode('ascii')
     digest = hashlib.sha256(prefix)
     with media.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
