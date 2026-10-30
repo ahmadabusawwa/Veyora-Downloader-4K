@@ -1,0 +1,201 @@
+{
+  "ok": true,
+  "version": "2.0.1",
+  "backend": "Actual installed GUI + spawned Whisper/Argos/FFmpeg",
+  "scope": "Synthetic English speech translated to Arabic; not a human speech accuracy certification",
+  "input_sha256": "98b6d6b2b694d1740bebf1ff230583ee9f2467492f6e7cc0e60cdab3a772fcac",
+  "cancellation_input_sha256": "554377e08ffd5ca922d5074063f8f05f578ce421631b650ce80dfe2a41b8d60e",
+  "errors": [],
+  "phases": [
+    {
+      "seconds": 0.484,
+      "phase": "starting",
+      "stage": ""
+    },
+    {
+      "seconds": 0.891,
+      "phase": "translating",
+      "stage": "Task started, preparing…"
+    },
+    {
+      "seconds": 1.609,
+      "phase": "translating",
+      "stage": "Checking saved English transcript"
+    },
+    {
+      "seconds": 1.734,
+      "phase": "translating",
+      "stage": "Waiting for speech recognizer"
+    },
+    {
+      "seconds": 2.047,
+      "phase": "translating",
+      "stage": "Loading en speech model base.en (first use may download it)"
+    },
+    {
+      "seconds": 2.734,
+      "phase": "translating",
+      "stage": "Recognizing en speech on CPU"
+    },
+    {
+      "seconds": 3.781,
+      "phase": "translating",
+      "stage": "Recognizing en speech on CPU | Working…"
+    },
+    {
+      "seconds": 13.063,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 7s / 90s"
+    },
+    {
+      "seconds": 14.172,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 7s / 90s | Working…"
+    },
+    {
+      "seconds": 22.406,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 27s / 90s"
+    },
+    {
+      "seconds": 23.531,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 27s / 90s | Working…"
+    },
+    {
+      "seconds": 30.75,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 59s / 90s"
+    },
+    {
+      "seconds": 31.875,
+      "phase": "translating",
+      "stage": "Recognizing en speech: 78s / 90s"
+    },
+    {
+      "seconds": 32.172,
+      "phase": "translating",
+      "stage": "Translating locally: subtitle 2/21"
+    },
+    {
+      "seconds": 32.297,
+      "phase": "translating",
+      "stage": "Translating locally: subtitle 5/21"
+    },
+    {
+      "seconds": 32.422,
+      "phase": "translating",
+      "stage": "Translating locally: subtitle 7/21"
+    },
+    {
+      "seconds": 33.172,
+      "phase": "translating",
+      "stage": "Burning Arabic subtitles: 35.3% | 61.50x | ETA ~00:00:00"
+    },
+    {
+      "seconds": 33.594,
+      "phase": "translating",
+      "stage": "Burning Arabic subtitles: 77.9% | 67.80x | ETA ~00:00:00"
+    },
+    {
+      "seconds": 34.031,
+      "phase": "translating",
+      "stage": "Saved: D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.f39d32096a80.en.srt, D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.f39d32096a80.ar.srt, D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.f39d32096a80.ar.mp4"
+    },
+    {
+      "seconds": 34.438,
+      "phase": "cancelling_real_job",
+      "stage": "Task started, preparing…"
+    },
+    {
+      "seconds": 34.875,
+      "phase": "cancelling_real_job",
+      "stage": "Checking saved English transcript"
+    },
+    {
+      "seconds": 35.172,
+      "phase": "cancelling_real_job",
+      "stage": "Waiting for speech recognizer"
+    },
+    {
+      "seconds": 35.422,
+      "phase": "cancelling_real_job",
+      "stage": "Loading en speech model base.en (first use may download it)"
+    },
+    {
+      "seconds": 35.859,
+      "phase": "cancelling_real_job",
+      "stage": "Recognizing en speech on CPU"
+    },
+    {
+      "seconds": 37.047,
+      "phase": "cancelling_real_job",
+      "stage": "Recognizing en speech on CPU | Working…"
+    },
+    {
+      "seconds": 44.875,
+      "phase": "cancelling_real_job",
+      "stage": "Recognizing en speech: 7s / 180s"
+    },
+    {
+      "seconds": 44.953,
+      "phase": "cancelling_real_job",
+      "stage": "Cancelling task…"
+    },
+    {
+      "seconds": 47.156,
+      "phase": "cancelling_real_job",
+      "stage": "Task cancelled."
+    }
+  ],
+  "window_actions": [
+    {
+      "action": "minimized",
+      "while_processing": true
+    },
+    {
+      "action": "maximized",
+      "while_processing": true
+    },
+    {
+      "action": "restored",
+      "while_processing": true
+    }
+  ],
+  "network": "Program-specific Windows outbound firewall blocks; HF_HUB_OFFLINE=1",
+  "window_actions_ok": true,
+  "burned_subtitle_white_pixels": 274,
+  "frame_sha256": "2a06f3c950faff1fb9b08c85ff37cf513c6c76e7f66d68fb3abb991f0ba136d7",
+  "video_translation_ok": true,
+  "source_transcript": "hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful.",
+  "arabic_translation": "مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل",
+  "cue_count": 21,
+  "duration_seconds": 90,
+  "outputs": {
+    "source_subtitle": {
+      "path": "translated\\فيديو تجريبي.f39d32096a80.en.srt",
+      "sha256": "cd8b520fdad8ad02378a5780a0ba146fe328936cf1f90fe8f9f619de88a5b61f",
+      "size": 1807
+    },
+    "subtitle": {
+      "path": "translated\\فيديو تجريبي.f39d32096a80.ar.srt",
+      "sha256": "b6e225e4c9791eb9c1af01193967992ee39bd5ebe91369b5ac5341d209dfe2de",
+      "size": 2342
+    },
+    "video": {
+      "path": "translated\\فيديو تجريبي.f39d32096a80.ar.mp4",
+      "sha256": "622f616cfab106cec0220a71aeb75ce8adf6c32a0607cb7ec2412cfedc08aba7",
+      "size": 752720
+    }
+  },
+  "cancel_during_stage": "Recognizing en speech: 7s / 180s",
+  "cancellation_seconds": 2.281,
+  "remaining_workers_after_cancel": [],
+  "cancellation_ok": true,
+  "seconds": 47.156,
+  "ui_timer": {
+    "samples": 741,
+    "max_gap_seconds": 0.407,
+    "p95_gap_seconds": 0.063
+  }
+}
