@@ -54,13 +54,13 @@ def _progress_values(packet, duration, elapsed):
     return fraction, eta, speed
 
 
-def run_ffmpeg(arguments, checkpoint=lambda: None, cwd=None, duration=None, progress=None):
+def run_ffmpeg(arguments, checkpoint=lambda: None, cwd=None, duration=None, progress=None, stall_timeout=300):
     """Continuously drain FFmpeg progress; retain only the latest packet."""
     with processing_slot(checkpoint):
-        return _run_ffmpeg(arguments, checkpoint, cwd, duration, progress)
+        return _run_ffmpeg(arguments, checkpoint, cwd, duration, progress, stall_timeout)
 
 
-def _run_ffmpeg(arguments, checkpoint, cwd, duration, progress):
+def _run_ffmpeg(arguments, checkpoint, cwd, duration, progress, stall_timeout=300):
     packets = queue.Queue(maxsize=1)
     with tempfile.TemporaryFile() as errors:
         process = subprocess.Popen([executable('ffmpeg'), '-nostdin', '-n', '-hide_banner',
@@ -94,12 +94,16 @@ def _run_ffmpeg(arguments, checkpoint, cwd, duration, progress):
         thread = threading.Thread(target=reader, daemon=True)
         thread.start()
         started, last_fraction, last_speed = time.monotonic(), 0.0, None
+        last_advance, last_position = time.monotonic(), None
         def update():
-            nonlocal last_fraction, last_speed
+            nonlocal last_fraction, last_speed, last_advance, last_position
             try:
                 packet = packets.get_nowait()
             except queue.Empty:
                 return
+            position = packet.get('out_time_us') or packet.get('out_time')
+            if position and position != last_position:
+                last_position, last_advance = position, time.monotonic()
             fraction, eta, speed = _progress_values(packet, duration, time.monotonic() - started)
             if fraction is not None:
                 fraction = max(last_fraction, fraction)
@@ -113,6 +117,8 @@ def _run_ffmpeg(arguments, checkpoint, cwd, duration, progress):
                 update()
                 if process.poll() is not None:
                     break
+                if stall_timeout and time.monotonic() - last_advance > stall_timeout:
+                    raise FFmpegError('FFmpeg stopped making progress; the process was terminated')
                 time.sleep(.1)
             thread.join(timeout=2)
             update()
@@ -149,7 +155,7 @@ def media_duration(video_path):
 
 def get_ffprobe_info(file_path):
     result = subprocess.run([executable('ffprobe'), '-v', 'quiet', '-print_format', 'json',
-        '-show_format', '-show_streams', str(file_path)], capture_output=True, text=True, timeout=30,
+        '-show_format', '-show_streams', str(file_path)], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:
         raise FFmpegError(result.stderr or 'ffprobe could not read this media')
@@ -163,7 +169,7 @@ def extract_audio(video_path, output_audio_path, checkpoint=lambda: None):
 def embed_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, subtitle_lang='ar', progress=None):
     # MKV supports copied media codecs and a selectable UTF-8 SRT track.
     run_ffmpeg(['-i', video_path, '-i', srt_path, '-map', '0:v:0', '-map', '0:a?', '-map', '1:0',
-        '-c', 'copy', '-c:s', 'srt', '-metadata:s:s:0', 'language=' + {'ar': 'ara', 'en': 'eng', 'tr': 'tur', 'ko': 'kor'}[subtitle_lang], output_video_path], checkpoint, duration=media_duration(video_path), progress=progress)
+        '-c', 'copy', '-c:s', 'mov_text' if Path(output_video_path).suffix.lower() == '.mp4' else 'srt', '-metadata:s:s:0', 'language=' + {'ar': 'ara', 'en': 'eng', 'tr': 'tur', 'ko': 'kor'}[subtitle_lang], output_video_path], checkpoint, duration=media_duration(video_path), progress=progress)
 
 
 def burn_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, progress=None):

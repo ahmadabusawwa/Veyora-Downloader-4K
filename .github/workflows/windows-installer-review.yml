@@ -2,7 +2,7 @@ name: Windows EXE and Setup review
 on:
   workflow_dispatch:
   push:
-    branches: ['development/veyora-2-automation']
+    branches: ['development/veyora-2-automation', 'repair/veyora-2-*']
 permissions:
   contents: read
 jobs:
@@ -31,6 +31,13 @@ jobs:
       - name: Build tested EXE and Setup
         shell: pwsh
         run: .\build_windows_2.ps1
+      - name: Prepare verified local models for installed translation tests
+        shell: pwsh
+        run: |
+          $env:VEYORA_CONFIG_DIR=Join-Path $env:RUNNER_TEMP 'veyora-model-review'
+          & .\.build-venv\Scripts\python.exe prepare_translation.py
+          if ($LASTEXITCODE) { throw 'Translation model preparation failed' }
+          "VEYORA_TEST_MODELS=$(Join-Path $env:VEYORA_CONFIG_DIR 'models')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Actual packaged installation and uninstall checks
         shell: pwsh
         run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.0.exe
@@ -45,4 +52,5 @@ jobs:
             dist/setup/*.exe
             dist/*.zip
             windows-tests.xml
+            installed-translation.json
           retention-days: 14

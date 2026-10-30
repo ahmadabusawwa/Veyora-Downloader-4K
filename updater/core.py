@@ -15,8 +15,47 @@ from packaging.version import Version, InvalidVersion
 REPOSITORY = 'ahmadabusawwa/Veyora-Downloader-4K'
 API = f'https://api.github.com/repos/{REPOSITORY}/releases'
 MAX_INSTALLER = 2 * 1024**3
+TRUSTED_KEYS_PATH = Path(__file__).with_name('trusted_keys.json')
+
+
+def _parse_keys_file(path):
+    try:
+        payload = json.loads(Path(path).read_text(encoding='utf8'))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    keys = {}
+    for key_id, value in payload.items():
+        if not isinstance(key_id, str) or not key_id.strip() or not isinstance(value, str):
+            continue
+        try:
+            if len(base64.b64decode(value, validate=True)) != 32:
+                continue
+        except (ValueError, TypeError):
+            continue
+        keys[key_id] = value
+    return keys
+
+
+def load_trusted_keys(path=None):
+    """Load owner-enrolled Ed25519 public keys.
+
+    The trust store ships empty. Enrollment is an explicit owner action: add a
+    JSON object mapping key ids to base64 raw public keys, then rebuild. Only
+    public keys belong here; private keys must stay offline.
+    """
+    if path is not None and path != TRUSTED_KEYS_PATH:
+        return _parse_keys_file(path)
+    keys = _parse_keys_file(TRUSTED_KEYS_PATH)
+    env_file = os.environ.get('VEYORA_TRUSTED_KEYS_FILE')
+    if env_file:
+        keys.update(_parse_keys_file(env_file))
+    return keys
+
+
 # Provision an owner-controlled OFFLINE public key before enabling production updates.
-TRUSTED_KEYS = {}
+TRUSTED_KEYS = load_trusted_keys()
 
 class UpdateError(Exception):
     pass
@@ -101,7 +140,7 @@ class UpdateClient:
     def __init__(self, current, directory, keys=None):
         self.current = version(current)
         self.directory = Path(directory)
-        self.keys = TRUSTED_KEYS if keys is None else keys
+        self.keys = load_trusted_keys() if keys is None else keys
 
     def check(self, prereleases=False):
         releases = json.loads(read_bounded(API + '?per_page=100', 2*1024*1024, api=True))

@@ -39,12 +39,15 @@ AUTO_TRANSLATION_MODES = tuple(TRANSLATION_DIRECTIONS)
 
 
 def selected_subtitle_language(display):
-    if display == 'Auto-Translate to Arabic':
-        return 'auto-ar'  # legacy label
-    try:
+    if display in ('Auto-Translate to Arabic', 'auto-en-ar'):
+        return 'auto-ar'  # legacy label / explicit alias
+    if display in ('Auto-Translate to English', 'auto-ar-en'):
+        return 'auto-en'
+    if display in SUBTITLE_CHOICES:
         return SUBTITLE_CHOICES[display]
-    except KeyError:
-        raise ValueError('Select a supported subtitle language or translation direction')
+    if display in TRANSLATION_DIRECTIONS or display in LANGUAGES:
+        return display
+    raise ValueError('Select a supported subtitle language or translation direction')
 
 
 # Ensure dependencies are available or gracefully handled
@@ -104,6 +107,11 @@ DEFAULT_SETTINGS = {
     "ui_language": "ar",
     "performance_mode": "balanced",
     "speech_model": "base",
+    "save_description": False,
+    "auto_split_clips": False,
+    "clip_enabled": False,
+    "clip_start": "00:00:00",
+    "clip_end": "00:12:34",
 }
 
 def atomic_json_write(path, value):
@@ -337,7 +345,8 @@ class DownloadEngine:
                         'platform': info.get('extractor_key', platform),
                     }
         except Exception as exc:
-            return {'error': friendly_download_error(url, exc)}
+            from runtime_support import friendly_error
+            return {'error': friendly_error(exc)}
 
     @staticmethod
     def get_format_string(settings):
@@ -447,6 +456,9 @@ class DownloadEngine:
         if speed_limit > 0:
             ydl_opts['ratelimit'] = speed_limit * 1024
 
+        if settings.get('save_description', False):
+            ydl_opts['writedescription'] = True
+
         cookies_file = settings.get('cookies_file', '')
         if cookies_file and os.path.exists(cookies_file):
             ydl_opts['cookiefile'] = cookies_file
@@ -502,9 +514,9 @@ class DownloadEngine:
             task_item['title'] = (result or {}).get('title') or final_path.stem
             if (settings.get('download_subs') and not settings.get('extract_audio')
                     and settings.get('sub_lang') in AUTO_TRANSLATION_MODES):
-                from translator.pipeline import TranslationPipeline
+                from translator.worker import run_translation
                 progress_callback(task_item['id'], {'status': 'translation', 'stage': 'Preparing selected translation direction'})
-                outputs = TranslationPipeline(final_path, out_dir).run(
+                outputs = run_translation(final_path, out_dir,
                     mode=settings.get('subtitle_mode', 'separate'), checkpoint=checkpoint,
                     source_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][0],
                     target_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][1],
@@ -539,8 +551,9 @@ class DownloadEngine:
             checkpoint()
             completion_callback(task_item['id'], True, "Download completed successfully.")
         except Exception as exc:
+            from runtime_support import friendly_error
             completion_callback(task_item['id'], False,
-                "Cancelled by user" if cancel_event.is_set() else friendly_download_error(url, exc))
+                friendly_error(exc, settings.get('ui_language') == 'ar', cancel_event.is_set()))
 
 
 def cleanup_leftover_files(directory, title_pattern):
@@ -802,7 +815,8 @@ class VeyoraApp(ctk.CTk):
             try:
                 callback()
             except Exception as exc:
-                messagebox.showerror('Veyora', str(exc))
+                from runtime_support import friendly_error
+                messagebox.showerror('Veyora', friendly_error(exc, self.settings.get('ui_language') == 'ar'))
         self.after(100, self._poll_workers)
 
     def _on_close(self):
@@ -1814,6 +1828,7 @@ def packaged_self_test(report_path):
         import faster_whisper
         import ctranslate2
         import onnxruntime
+        onnxruntime.disable_telemetry_events()
         import av
         import sentencepiece
         with create_downloader({'quiet': True, 'no_warnings': True}) as engine:
@@ -1831,6 +1846,27 @@ def packaged_self_test(report_path):
             if not valid:
                 raise RuntimeError('Packaged local translator failed: ' + source + ' -> ' + target)
             report['offline_translation'][source + '_' + target] = translated
+        # Exercise a real installed SRT translation and MP4 render without
+        # treating it as an audio-recognition test.
+        from translator.pipeline import TranslationPipeline
+        from translator.video_renderer import run_ffmpeg, burn_subtitles, get_ffprobe_info
+        from translator.translation_provider import release_translation_models
+        with tempfile.TemporaryDirectory(prefix='veyora-installed-test-') as folder:
+            folder = Path(folder)
+            source = folder / 'source.srt'
+            source.write_text('1\n00:00:00,000 --> 00:00:00,900\nHello world.\n', encoding='utf8')
+            outputs = TranslationPipeline(source, folder / 'output').run(source_lang='en', target_lang='ar')
+            translated_srt = Path(outputs['subtitle']).read_text(encoding='utf8')
+            if not any('\u0600' <= c <= '\u06ff' for c in translated_srt):
+                raise RuntimeError('Installed SRT translation failed')
+            video = folder / 'input.mp4'
+            run_ffmpeg(['-f', 'lavfi', '-i', 'color=s=160x90:d=1', '-c:v', 'libx264', video])
+            burned = folder / 'burned.mp4'
+            burn_subtitles(video, outputs['subtitle'], burned)
+            if not any(s['codec_type'] == 'video' for s in get_ffprobe_info(burned)['streams']):
+                raise RuntimeError('Installed MP4 rendering failed')
+            report['srt_translation_and_mp4_render'] = True
+        release_translation_models()
         subprocess.run([executable('ffmpeg'), '-version'], check=True, capture_output=True, timeout=20)
         subprocess.run([executable('ffprobe'), '-version'], check=True, capture_output=True, timeout=20)
         root = ctk.CTk()
@@ -1845,6 +1881,8 @@ def packaged_self_test(report_path):
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     if len(sys.argv) == 3 and sys.argv[1] == '--gui-smoke':
         from desktop_ui import DesktopApp
         from PIL import ImageGrab

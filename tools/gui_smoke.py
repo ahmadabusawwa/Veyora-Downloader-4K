@@ -1,5 +1,5 @@
 """Run a real native window, exercise navigation, and save a screenshot."""
-import argparse, os, sys, tempfile
+import argparse, os, sys, tempfile, time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 os.environ['VEYORA_CONFIG_DIR']=tempfile.mkdtemp(prefix='veyora-gui-review-')
@@ -21,8 +21,17 @@ def check():
         for size in ('1080x760','1280x820','1536x980'):
             app.geometry(size);app.update()
         assert app.url_entry.winfo_exists()
+        app.deiconify()
+        app.lift()
+        app.attributes('-topmost', True)
+        app.focus_force()
+        app.update_idletasks()
+        app.update()
+        time.sleep(0.6)
+        app.update()
         x,y=app.winfo_rootx(),app.winfo_rooty()
         ImageGrab.grab().crop((x,y,x+app.winfo_width(),y+app.winfo_height())).save(a.output)
+        app.attributes('-topmost', False)
         assert not errors, errors
         print('GUI navigation, resize and screenshot passed:',a.output)
     finally:app._on_close()

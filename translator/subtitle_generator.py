@@ -1,4 +1,6 @@
 import math
+import os
+import tempfile
 from pathlib import Path
 
 
@@ -13,12 +15,20 @@ def format_timestamp(seconds):
 
 
 def generate_srt(segments, output_path):
-    with open(output_path, 'w', encoding='utf-8') as stream:
-        for i, segment in enumerate(segments, 1):
-            if segment.end < segment.start:
-                raise ValueError('Subtitle ends before it starts')
-            text = str(segment.text).replace('\r', '').replace('\n\n', '\n').strip()
-            stream.write(f'{i}\n{format_timestamp(segment.start)} --> {format_timestamp(segment.end)}\n{text}\n\n')
+    destination = Path(output_path)
+    fd, temporary = tempfile.mkstemp(prefix='subtitle-', suffix='.partial', dir=destination.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            for i, segment in enumerate(segments, 1):
+                if segment.end < segment.start:
+                    raise ValueError('Subtitle ends before it starts')
+                text = str(segment.text).replace('\r', '').replace('\n\n', '\n').strip()
+                stream.write(f'{i}\n{format_timestamp(segment.start)} --> {format_timestamp(segment.end)}\n{text}\n\n')
+        os.replace(temporary, destination)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
 
 
 def parse_srt(path):

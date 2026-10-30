@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import zipfile
+import uuid
 from pathlib import Path
 import requests
 from .exceptions import TranslationError
@@ -43,7 +44,13 @@ def model_directory(source_lang='en', target_lang='ar'):
 
 
 def is_installed(path, source_lang='en', target_lang='ar'):
-    return all((path / name).is_file() for name in REQUIRED) and (path / 'VERIFIED_SHA256').is_file() and (path / 'VERIFIED_SHA256').read_text(encoding='ascii').strip() == model_entry(source_lang, target_lang)['sha256']
+    try:
+        return (all((path / name).is_file() and (path / name).stat().st_size > 0 for name in REQUIRED)
+                and (path / 'VERIFIED_SHA256').read_text(encoding='ascii').strip()
+                == model_entry(source_lang, target_lang)['sha256'])
+    except (OSError, UnicodeError):
+        return False
+
 
 
 def _extract_verified(archive, destination, source_lang='en', target_lang='ar'):
@@ -96,7 +103,8 @@ def ensure_model(checkpoint=lambda: None, progress=lambda stage, fraction=None: 
             else:
                 errors = []
                 for host in ('https://data.argosopentech.com/argospm/v1/', 'https://argos-net.com/v1/'):
-                    url = entry.get('url', host + 'translate-' + entry['pair'] + '-1_0.argosmodel')
+                    filename = entry.get('url', 'translate-' + entry['pair'] + '-1_0.argosmodel').rsplit('/', 1)[-1]
+                    url = host + filename
                     checkpoint()
                     progress(f'Downloading {direction} model (about {entry["size_mib"]} MiB, first use only)', 0)
                     try:
@@ -131,7 +139,9 @@ def ensure_model(checkpoint=lambda: None, progress=lambda stage, fraction=None: 
             if is_installed(target, source_lang, target_lang):
                 return target
             if target.exists():
-                raise TranslationError('Incomplete translation model directory. Preserve it and rename it before retrying: ' + str(target))
+                # Preserve incomplete files, then publish the fully verified replacement.
+                damaged = target.with_name(target.name + '.incomplete-' + uuid.uuid4().hex[:8])
+                os.replace(target, damaged)
             os.replace(staging, target)
         return target
     finally:

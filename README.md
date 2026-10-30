@@ -1,3 +1,5 @@
+> **Repair review — 2026-10-30:** Read [REPAIR_STATUS_2026-10-30.md](REPAIR_STATUS_2026-10-30.md) first. 165 tests passed, 3 skipped on Linux. Windows build and full speech validation remain unverified. Extract to a separate folder; keep the original project unchanged.
+
 # Veyora Pro 2.0 — review build
 
 Native Python desktop video downloader and local subtitle translator for Windows 10/11 x64. This is a development review build, **not an approved production release**. It extends the supplied 1.7 source; the original media engine, queue, history, site routing and translation modules are retained.

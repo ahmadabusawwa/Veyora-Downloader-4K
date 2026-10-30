@@ -64,6 +64,9 @@ class DirectTranslatorProvider:
         finally:
             _runtime_lock.release()
         value = ' '.join(pieces)
+        # Bound duplicate-cue caching on long videos.
+        if len(self.cache) >= 256:
+            self.cache.pop(next(iter(self.cache)))
         self.cache[text] = value
         return value
 
@@ -95,6 +98,7 @@ class TranslatorProvider:
             raise TranslationError('Target language does not match the selected direction')
         for stage in self.stages:
             text = stage.translate(text, checkpoint=checkpoint)
-            if len(self.stages) > 1:
-                release_translation_models()
+            # A pivot uses at most two runtimes. Retain them for this job;
+            # unloading here reloaded both weights for every subtitle cue.
+            # TranslationPipeline releases them before rendering and on failure.
         return text

@@ -37,8 +37,10 @@ if ($LASTEXITCODE) { throw 'Tests failed' }
 if ($LASTEXITCODE) { throw 'Packaging failed' }
 $iscc=Get-Command ISCC.exe -ErrorAction SilentlyContinue
 if (-not $iscc) {
- $path="${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
- if (-not (Test-Path $path)) { throw 'Install Inno Setup 6 from the official source first.' }
+ $path = @('C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+           'C:\Program Files\Inno Setup 6\ISCC.exe',
+           'C:\Program Files\Inno Setup 7\ISCC.exe') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+ if (-not $path) { throw 'Install Inno Setup 6 or 7 from the official source first.' }
 } else { $path=$iscc.Source }
 & $path packaging/installer.iss
 if ($LASTEXITCODE) { throw 'Inno Setup failed' }

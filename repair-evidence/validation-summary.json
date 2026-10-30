@@ -1,0 +1,15 @@
+{
+  "source_archive_sha256": "ae28c6ebb8c34ac5e939d1575ad207f820ee4f570e55575acb4482af9dfbc5d5",
+  "tests": {
+    "passed": 165,
+    "skipped": 3,
+    "failed": 0
+  },
+  "platform": "Linux Python 3.12 with virtual X display",
+  "actual_text_translation_directions": 12,
+  "arabic_title_function_unchanged": true,
+  "windows_build": "not run; public GitHub source upload rejected pending explicit approval",
+  "full_audio_long_video_validation": "blocked by automatic review: Microsoft telemetry attempt; no success claimed",
+  "original_device_backup": "not performed; E drive unavailable",
+  "scope": "Working source copy; not a release"
+}
