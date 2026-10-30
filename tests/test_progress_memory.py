@@ -91,6 +91,7 @@ def test_burn_uses_bounded_decoder_encoder_and_lookahead(monkeypatch, tmp_path):
     run = Mock()
     monkeypatch.setattr(renderer, 'run_ffmpeg', run)
     monkeypatch.setattr(renderer, 'media_duration', lambda _: 10)
+    monkeypatch.setattr(renderer, 'get_ffprobe_info', lambda _: {'streams':[{'codec_type':'video','width':1280,'height':720}]})
     renderer.burn_subtitles(tmp_path / 'source.mp4', subtitle, tmp_path / 'output.mp4')
     args = run.call_args.args[0]
     positions = [i for i, v in enumerate(args) if v == '-threads']

@@ -95,7 +95,10 @@ class TranslationPipeline:
         self.video_path = Path(video_path).resolve()
         self.output_dir = Path(output_dir).resolve()
 
-    def run(self, mode='separate', checkpoint=lambda: None, progress=lambda stage, fraction=None: None, source_lang='en', target_lang='ar', save_original=True):
+    def run(self, mode='separate', checkpoint=lambda: None, progress=lambda stage, fraction=None: None, source_lang='en', target_lang='ar', save_original=True, subtitle_style=None, enhance_speech=False, contextual_translation=False):
+        self.enhance_speech = bool(enhance_speech)
+        self.contextual_translation = bool(contextual_translation)
+        self.subtitle_style = subtitle_style
         with processing_slot(checkpoint, progress):
             try:
                 return self._run(mode, checkpoint, progress, source_lang, target_lang, save_original)
@@ -129,7 +132,7 @@ class TranslationPipeline:
                     text += ' | ETA estimating'
                 progress(text, fraction)
             if mode == 'burn':
-                renderer(self.video_path, subtitle, rendered, checkpoint, progress=render_progress)
+                renderer(self.video_path, subtitle, rendered, checkpoint, progress=render_progress, **({'style': self.subtitle_style} if getattr(self, 'subtitle_style', None) else {}))
             else:
                 renderer(self.video_path, subtitle, rendered, checkpoint, subtitle_lang=target_lang, progress=render_progress)
             checkpoint()
@@ -147,7 +150,7 @@ class TranslationPipeline:
         if source_lang == 'auto':
             with tempfile.TemporaryDirectory(prefix='veyora-detect-') as folder:
                 audio = Path(folder) / 'speech.wav'
-                extract_audio(self.video_path, audio, checkpoint)
+                self._extract_speech(audio, checkpoint)
                 detected_segments, info = Transcriber(language='auto').transcribe(str(audio), checkpoint, progress)
                 detected = getattr(info, 'language', None)
                 if detected not in ('ar', 'en', 'tr', 'ko') and detected_segments:
@@ -155,7 +158,7 @@ class TranslationPipeline:
                 if detected not in ('ar', 'en', 'tr', 'ko'):
                     raise TranscriptionError('Detected speech language is not supported')
                 if detected_segments:
-                    cache = config_root() / 'transcripts' / (_cache_key(self.video_path, checkpoint, detected) + '.json')
+                    cache = config_root() / 'transcripts' / (_cache_key(self.video_path, checkpoint, detected + ('-enhance-v1' if getattr(self,'enhance_speech',False) else '')) + '.json')
                     _write_cache(cache, detected_segments)
                 release_speech_model()
                 if detected == target_lang:
@@ -176,7 +179,7 @@ class TranslationPipeline:
         stem = self.video_path.stem + '.' + uuid.uuid4().hex[:12]
         outputs = {}
         progress(f'Checking saved {source_name} transcript', None)
-        cache = config_root() / 'transcripts' / (_cache_key(self.video_path, checkpoint, source_lang) + '.json')
+        cache = config_root() / 'transcripts' / (_cache_key(self.video_path, checkpoint, source_lang + ('-enhance-v1' if getattr(self,'enhance_speech',False) else '')) + '.json')
         segments = _read_cache(cache)
         with tempfile.TemporaryDirectory(prefix='veyora-translate-') as temp:
             temp = Path(temp)
@@ -184,7 +187,7 @@ class TranslationPipeline:
             if segments is None:
                 progress('Extracting audio', None)
                 audio = temp / 'speech.wav'
-                extract_audio(self.video_path, audio, checkpoint)
+                self._extract_speech(audio, checkpoint)
                 segments, _ = Transcriber(language=source_lang).transcribe(str(audio), checkpoint=checkpoint, progress=progress)
                 if not segments:
                     raise TranscriptionError(f'No {source_name} speech was detected; no subtitle was produced')
@@ -202,6 +205,9 @@ class TranslationPipeline:
                 translator = TranslatorProvider(source_lang, target_lang)
                 translator.prepare(checkpoint, progress)
                 translated = []
+                if getattr(self,'contextual_translation',False):
+                    from .context_segments import sentence_groups
+                    segments = list(sentence_groups(segments))
                 for index, segment in enumerate(segments):
                     checkpoint()
                     progress(f'Translating locally: subtitle {index + 1}/{len(segments)}', index / len(segments))
@@ -211,6 +217,13 @@ class TranslationPipeline:
                 translator.cache.clear()
                 release_translation_models()
             return self._finish_outputs(temp, stem, target_lang, target_name, translated, mode, checkpoint, progress, outputs)
+
+    def _extract_speech(self, output, checkpoint):
+        if getattr(self,'enhance_speech',False):
+            from .speech_enhancement import enhance_speech
+            enhance_speech(self.video_path, output, checkpoint)
+        else:
+            extract_audio(self.video_path, output, checkpoint)
 
     def _translate_srt(self, source_lang, target_lang, checkpoint, progress):
         from .subtitle_generator import parse_srt
@@ -229,6 +242,9 @@ class TranslationPipeline:
         translator = TranslatorProvider(source_lang, target_lang)
         translator.prepare(checkpoint, progress)
         result = []
+        if getattr(self,'contextual_translation',False):
+            from .context_segments import sentence_groups
+            segments = list(sentence_groups(segments))
         for i, segment in enumerate(segments):
             checkpoint()
             result.append(SimpleNamespace(start=segment.start, end=segment.end, text=translator.translate(segment.text, checkpoint=checkpoint)))

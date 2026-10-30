@@ -45,6 +45,21 @@ $navigation=Get-Content -LiteralPath (Join-Path $OutputDirectory 'navigation-res
 Write-Host ('NAVIGATION_REPORT: '+($navigation | ConvertTo-Json -Depth 10 -Compress))
 if ($p.ExitCode -ne 0 -or -not $navigation.ok) { throw ('Installed navigation/playlist test failed: '+($navigation.errors -join '; ')) }
 
+foreach ($stage in @('first','restart')) {
+ $p=Start-Process -FilePath $Application -ArgumentList @('--review-features',"`"$video`"","`"$(Join-Path $OutputDirectory 'features')`"",$stage) -PassThru
+ if (-not $p.WaitForExit(120000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Actual GUI feature review timeout' }
+ $feature=Get-Content -Raw -LiteralPath (Join-Path $OutputDirectory "features/gui-features-$stage.json") | ConvertFrom-Json
+ Write-Host ('FEATURE_REPORT: '+($feature | ConvertTo-Json -Depth 8 -Compress))
+ if ($p.ExitCode -ne 0 -or -not $feature.ok) { throw 'Actual GUI link/convert/style/thumbnail review failed' }
+}
+
+$recoveryDirectory=Join-Path $OutputDirectory 'recovery'
+$p=Start-Process -FilePath $Application -ArgumentList @('--review-recovery',"`"$video`"","`"$recoveryDirectory`"") -PassThru
+if (-not $p.WaitForExit(180000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Actual crash recovery timeout' }
+$recovery=Get-Content -Raw -LiteralPath (Join-Path $recoveryDirectory 'recovery-results.json') | ConvertFrom-Json
+Write-Host ('RECOVERY_REPORT: '+($recovery | ConvertTo-Json -Depth 8 -Compress))
+if ($p.ExitCode -ne 0 -or -not $recovery.ok) { throw 'Actual installed crash recovery failed' }
+
 # Deny outbound traffic by executable before any native speech inference runs.
 # This applies to the frozen child workers too, which use the same executable.
 $disabled=@(Get-NetFirewallProfile | Where-Object { -not $_.Enabled })
@@ -98,6 +113,12 @@ try {
   $report=Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
   Write-Host ('REAL_VIDEO_REPORT: '+($report | ConvertTo-Json -Depth 12 -Compress))
   if ($p.ExitCode -ne 0 -or -not $report.ok) { throw ('Actual video validation failed: '+($report.errors -join '; ')) }
+  $qualityDirectory=Join-Path $OutputDirectory 'quality'
+  $p=Start-Process -FilePath $Application -ArgumentList @('--review-quality',"`"$wave`"","`"$qualityDirectory`"") -PassThru
+  if (-not $p.WaitForExit(660000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Actual media quality review timeout' }
+  $quality=Get-Content -Raw -LiteralPath (Join-Path $qualityDirectory 'media-quality-results.json') | ConvertFrom-Json
+  Write-Host ('QUALITY_REPORT: '+($quality | ConvertTo-Json -Depth 10 -Compress))
+  if ($p.ExitCode -ne 0 -or -not $quality.ok) { throw 'Actual installed media quality review failed' }
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }
 } finally {

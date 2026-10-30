@@ -302,6 +302,16 @@ class DesktopApp(VeyoraApp):
         self.minsize(1080, 760)
         self.configure(fg_color=self.c["bg"])
         self._start_status_clock()
+        if any(t.get('status') not in self.queue_manager.TERMINAL for t in self.queue_manager.recoverable):
+            self.after(500, self._offer_download_recovery)
+
+    def _offer_download_recovery(self):
+        if messagebox.askyesno(self.t('استعادة التحميلات', 'Recover downloads'),
+            self.t('توجد تحميلات غير مكتملة. هل تريد استئنافها؟ قد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.',
+                   'Resume previous unfinished downloads? Sources without range support or expired links may require a fresh transfer.'), parent=self):
+            self.queue_manager.restore_previous()
+            self.show_tab('Downloads')
+
 
     # ------------------------------------------------------------------
     # Small helpers
@@ -827,7 +837,7 @@ class DesktopApp(VeyoraApp):
             "Downloads": ("video", "Downloads"),
             "Playlist": ("playlists", "Playlist"),
             "Translation": ("translation", "Translation"),
-            "Convert": ("convert", "Translation"),
+            "Convert": ("convert", ""),
             "History": ("history", "History"),
             "Settings": ("settings", "Settings"),
         }
@@ -894,6 +904,8 @@ class DesktopApp(VeyoraApp):
             view['pause']()
 
     def show_tab(self, name):
+        if self.pages.active == 'Dashboard' and name != 'Dashboard':
+            self._prepare_dashboard_settings()
         builders = dict(Dashboard=self.build_dashboard_tab, Downloads=self.build_downloads_tab,
             History=self.build_history_tab, Settings=self.build_settings_tab,
             Translation=lambda: self.build_local_tab(False), Convert=lambda: self.build_local_tab(True),
@@ -1028,8 +1040,31 @@ class DesktopApp(VeyoraApp):
             width=30,
         ).grid(row=0, column=0, padx=(12, 4), pady=8)
 
+        if not hasattr(self, '_draft_url'):
+            from session_state import public_draft
+            self._draft_url = ctk.StringVar(value=public_draft(self.settings.get('saved_public_url', '')))
+            self._draft_save_id = None
+            self._draft_revision = 0
+            def remember(*_):
+                self._draft_revision += 1
+                if self._draft_save_id:
+                    self.after_cancel(self._draft_save_id)
+                def save():
+                    self._draft_save_id = None
+                    self.settings['saved_public_url'] = public_draft(self._draft_url.get())
+                    import copy
+                    snapshot = copy.deepcopy(self.settings)
+                    revision = self._draft_revision
+                    def persist():
+                        with SettingsManager._lock:
+                            if revision == self._draft_revision and not getattr(self,'_closing',False):
+                                SettingsManager.save(snapshot)
+                    threading.Thread(target=persist,daemon=True,name='save-draft').start()
+                self._draft_save_id = self.after(500, save)
+            self._draft_url.trace_add('write',remember)
         self.url_entry = ctk.CTkEntry(
             url_box,
+            textvariable=self._draft_url,
             placeholder_text="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             height=42,
             border_width=0,
@@ -2168,6 +2203,7 @@ class DesktopApp(VeyoraApp):
             self.info_thumb_label.configure(image=self.mini_ctk_image, text="")
 
     def _prepare_dashboard_settings(self):
+        before = dict(self.settings)
         if hasattr(self, "quality_display_var"):
             self.quality_var.set(self._quality_from_display(self.quality_display_var.get()))
         if hasattr(self, "format_display_var"):
@@ -2193,7 +2229,8 @@ class DesktopApp(VeyoraApp):
             self.settings["download_subs"] = self.sub_var.get()
             if self.dashboard_subtitle_mode.get():
                 self.settings["subtitle_mode"] = self.dashboard_subtitle_mode.get()
-            SettingsManager.save(self.settings)
+            if before != self.settings:
+                SettingsManager.save(self.settings)
 
     def start_download_action(self):
         self._prepare_dashboard_settings()
@@ -2239,7 +2276,7 @@ class DesktopApp(VeyoraApp):
 
         thumb_img = _make_scenic_preview(92, 52, "")
         card._thumb_ctk = ctk.CTkImage(thumb_img, size=(92, 52))
-        ctk.CTkLabel(
+        thumb_label = ctk.CTkLabel(
             card,
             text="",
             image=card._thumb_ctk,
@@ -2247,7 +2284,10 @@ class DesktopApp(VeyoraApp):
             height=52,
             fg_color=colors["panel2"],
             corner_radius=8,
-        ).grid(row=0, column=0, rowspan=2, padx=(10, 10), pady=8)
+        )
+        thumb_label.grid(row=0, column=0, rowspan=2, padx=(10, 10), pady=8)
+        card._thumbnail_label = thumb_label
+        card._thumbnail_url = None
 
         # Column 1: Title + Badges (Quality, Format, Subtitle language)
         title = ctk.CTkLabel(
@@ -2385,6 +2425,23 @@ class DesktopApp(VeyoraApp):
         tid = task["id"]
         if tid not in self.card_widgets:
             return
+        card = self.card_widgets[tid]
+        thumbnail = task.get('thumbnail')
+        if thumbnail and card._thumbnail_url != thumbnail:
+            card._thumbnail_url = thumbnail
+            from thumbnail_cache import request
+            def loaded(image):
+                if image is None: return
+                def apply():
+                    if not card.winfo_exists(): return
+                    from PIL import ImageOps
+                    # Letterbox retains the original aspect ratio.
+                    image_box = ImageOps.pad(image,(92,52),color='#152636')
+                    card._thumb_ctk = ctk.CTkImage(image_box,size=(92,52))
+                    card._thumbnail_label.configure(image=card._thumb_ctk)
+                    card._thumbnail_applied = True
+                self._ui_callbacks.put(apply)
+            request(thumbnail, CONFIG_DIR/'thumbnails',loaded)
         status = task.get("status", "Queued")
         old = self._card_snapshots.get(tid, {})
         title = str(task.get("title", ""))
@@ -2851,8 +2908,8 @@ class DesktopApp(VeyoraApp):
         ctk.CTkLabel(
             card,
             text=self.t(
-                "اختر فيديو أو ملف ترجمة. تتم المعالجة محليًا بين العربية والإنجليزية والتركية والكورية.",
-                "Choose a video or subtitle file. Processing stays on this device across ar/en/tr/ko.",
+                "اختر ملفًا لتحويل صيغته أو استخراج الصوت." if convert else "اختر فيديو أو صوتًا أو ملف SRT للترجمة.",
+                "Choose media to convert its format or extract audio." if convert else "Choose video, audio or SRT to translate.",
             ),
             text_color=self.c["muted"],
             font=("Segoe UI", 11),
@@ -2906,11 +2963,14 @@ class DesktopApp(VeyoraApp):
         menus = ctk.CTkFrame(card, fg_color="transparent")
         menus.grid(row=4, column=0, padx=24, pady=10)
         option_widgets = []
-        for var, values, width in (
-            (src, self._source_labels(), 190),
-            (dst, self._target_labels(), 190),
-            (mode, ["MP4", "MKV", "MP3"] if convert else self._subtitle_mode_display_values(), 210),
-        ):
+        choices = [(mode, ["MP4", "MKV", "MP3", "WAV"], 150)] if convert else [
+            (src,self._source_labels(),190),(dst,self._target_labels(),190),(mode,self._subtitle_mode_display_values(),210)]
+        convert_options = {}
+        if convert:
+            for key, default, values in [('codec','h264',['h264','h265']), ('resolution','original',['original','480','720','1080','2160']), ('bitrate','auto',['auto','1000k','2500k','5000k','10000k'])]:
+                variable = convert_options[key] = ctk.StringVar(value=form.get(key,default))
+                choices.append((variable,values,115))
+        for var, values, width in choices:
             menu = ctk.CTkOptionMenu(
                 menus,
                 variable=var,
@@ -2926,8 +2986,8 @@ class DesktopApp(VeyoraApp):
         label = ctk.CTkLabel(
             card,
             text=self.t(
-                "لغة المصدر • اللغة الهدف • طريقة الحفظ",
-                "Source language • target language • output mode",
+                "الصيغة • Codec • الارتفاع • Bitrate (خيارات الفيديو لـ MP4/MKV فقط)" if convert else "لغة المصدر • اللغة الهدف • طريقة الحفظ",
+                "Format • codec • height • bitrate (video settings apply to MP4/MKV)" if convert else "Source language • target language • output mode",
             ),
             text_color=self.c["muted"],
             font=("Segoe UI", 10),
@@ -2998,9 +3058,12 @@ class DesktopApp(VeyoraApp):
                 self.notify('اختر ملف وسائط موجودًا', 'Choose an existing media file', 'error')
                 return
             save_form()
+            if convert:
+                self.local_tasks.save_form(kind, **{key:var.get() for key,var in convert_options.items()})
             values = self.local_tasks.form(kind)
             self.local_tasks.start(kind, media, self.selected_folder, values['source'], values['target'], values['mode'],
-                save_original=self.settings.get('save_original_subtitles', False))
+                save_original=self.settings.get('save_original_subtitles', False),
+                options={key:var.get() for key,var in convert_options.items()} if convert else {'subtitle_style': self.settings.get('subtitle_style'), 'enhance_speech': enhance.get(), 'contextual_translation':context.get()})
             render(True)
 
         def cancel():
@@ -3014,6 +3077,17 @@ class DesktopApp(VeyoraApp):
         cancel_button.pack(side='left', padx=6)
         self._local_task_controls = dict(path=path, source=src, target=dst, mode=mode,
             start=start_button, cancel=cancel_button, status=label, progress=bar)
+        if not convert:
+            enhance = ctk.BooleanVar(value=self.settings.get('enhance_speech',False))
+            context = ctk.BooleanVar(value=self.settings.get('contextual_translation',False))
+            def store_speech_options():
+                self.settings['enhance_speech'] = enhance.get()
+                self.settings['contextual_translation'] = context.get()
+                SettingsManager.save(self.settings)
+            ctk.CTkCheckBox(card,text=self.t('تحسين وضوح الكلام (تجريبي، اختياري)','Enhance dialogue (experimental, optional)'),variable=enhance,command=store_speech_options).grid(row=8,column=0,sticky='w',padx=24,pady=6)
+            ctk.CTkCheckBox(card,text=self.t('جمع أجزاء الجملة قبل الترجمة (اختياري)','Join sentence fragments before translating (optional)'),variable=context,command=store_speech_options).grid(row=9,column=0,sticky='w',padx=24,pady=6)
+            from media_options_ui import subtitle_options
+            self.ghost_button(buttons,self.t('مظهر ومعاينة الترجمة','Subtitle style & preview'),lambda:subtitle_options(self,path),width=190).pack(side='left',padx=6)
         self._local_views[kind] = dict(render=render, pause=pause)
         render(True)
 
@@ -3172,6 +3246,13 @@ class DesktopApp(VeyoraApp):
         text.configure(state="disabled")
 
     def _on_close(self):
+        if hasattr(self, '_draft_url'):
+            self._draft_revision += 1
+            from session_state import public_draft
+            draft = public_draft(self._draft_url.get())
+            if draft != self.settings.get('saved_public_url',''):
+                self.settings['saved_public_url'] = draft
+                SettingsManager.save(self.settings)
         self.local_tasks.close()
         self._pause_local_views()
         if getattr(self, "updater", None):

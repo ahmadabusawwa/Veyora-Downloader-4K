@@ -105,7 +105,7 @@ def build_playlist_page(app):
         def batch(offset=0):
             for item in selected[offset:offset+5]:
                 app.queue_manager.add_task(item['url'], settings, title=item['title'],
-                                           selected_folder=folder, video_id=item.get('id', ''))
+                                           selected_folder=folder, video_id=item.get('id', ''), thumbnail=item.get('thumbnail', ''))
             if offset+5 < len(selected):
                 app._ui_callbacks.put(lambda: batch(offset+5))
             else:

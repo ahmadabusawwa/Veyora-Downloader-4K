@@ -69,7 +69,8 @@ class LocalTaskManager:
             self.events[task.id].set()
             return True
 
-    def start(self, kind, path, folder, source, target, mode, *, save_original=False, runner=None):
+    def start(self, kind, path, folder, source, target, mode, *, save_original=False, runner=None, options=None):
+        options = copy.deepcopy(options)
         with self.lock:
             if self.closed or self.active_id:
                 return None
@@ -101,7 +102,7 @@ class LocalTaskManager:
             try:
                 perform = runner or run_local_job
                 result = perform(kind, path, folder, source, target, mode,
-                                 checkpoint=checkpoint, progress=progress, save_original=save_original)
+                                 checkpoint=checkpoint, progress=progress, save_original=save_original, **({"options": copy.deepcopy(options)} if options else {}))
                 checkpoint()
                 with self.lock:
                     if event.is_set():
@@ -133,11 +134,11 @@ class LocalTaskManager:
         self.cancel()
 
 
-def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progress, save_original):
+def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progress, save_original, options=None):
     if kind == 'Translation':
         from translator.worker import run_translation
         return run_translation(path, folder, mode=mode, checkpoint=checkpoint, progress=progress,
-                               source_lang=source, target_lang=target, save_original=save_original)
+                               source_lang=source, target_lang=target, save_original=save_original, **(options or {}))
     import tempfile
     from translator.video_renderer import run_ffmpeg, media_duration
     from translator.pipeline import _publish_file
@@ -145,8 +146,9 @@ def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progr
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='veyora-convert-') as directory:
         temporary = Path(directory) / ('converted.' + mode.lower())
-        options = ['-vn', '-c:a', 'libmp3lame'] if mode == 'MP3' else ['-c:v', 'libx264', '-c:a', 'aac']
-        run_ffmpeg(['-i', str(path), *options, temporary], checkpoint, duration=media_duration(path),
+        from media_conversion import conversion_arguments
+        arguments = conversion_arguments(mode, options or {})
+        run_ffmpeg(['-i', str(path), *arguments, temporary], checkpoint, duration=media_duration(path),
                    progress=lambda fraction, eta, speed: progress('Converting media', fraction))
         _publish_file(temporary, destination, checkpoint)
     return {'video': str(destination)}

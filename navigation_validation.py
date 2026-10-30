@@ -60,8 +60,10 @@ def run_navigation_review(media, cancel_media, report_directory):
     web.mkdir(exist_ok=True)
     shutil.copyfile(media, web / 'first.mp4')
     shutil.copyfile(cancel_media, web / 'second.mp4')
+    from PIL import Image
+    Image.new('RGB',(160,90),(240,180,20)).save(web/'poster.png')
     (web / 'index.html').write_text('<html><head><title>Authorized local playlist</title></head><body>'
-        '<video controls src="first.mp4"></video><video controls src="second.mp4"></video></body></html>', encoding='utf8')
+        '<video controls poster="poster.png" src="first.mp4"></video><video controls poster="poster.png" src="second.mp4"></video></body></html>', encoding='utf8')
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -70,6 +72,11 @@ def run_navigation_review(media, cancel_media, report_directory):
     server_thread.start()
     app = DesktopApp()
     app.settings.update(ui_language='en', download_subs=False, save_thumbnail=False)
+    app.sub_var.set(False)
+    app.thumb_var.set(False)
+    app.desc_var.set(False)
+    app.split_var.set(False)
+    app.clip_var.set(False)
     app.selected_folder = str(directory / 'playlist-downloads')
     report = dict(ok=False, version=APP_VERSION, backend='Actual installed GUI, real yt-dlp, local HTTP playlist', errors=[])
     state = dict(phase='warm', index=0, rounds=0, deadline=time.monotonic()+180,
@@ -124,6 +131,8 @@ def run_navigation_review(media, cancel_media, report_directory):
                     if {digest(t['downloaded_file']) for t in tasks} != {digest(media), digest(cancel_media)}:
                         raise RuntimeError('Downloaded playlist bytes differ from real input media')
                     report['playlist_downloads_ok'] = True
+                    if not all(t.get('thumbnail') for t in tasks):
+                        raise RuntimeError('Playlist lost its original thumbnail metadata')
                     state.update(phase='warm_downloaded', index=0)
             elif state['phase'] == 'warm_downloaded':
                 press_page(app, PAGES[state['index']])
@@ -131,6 +140,10 @@ def run_navigation_review(media, cancel_media, report_directory):
                 if state['index'] == len(PAGES):
                     state.update(phase='settle', settle_until=now+.5)
             elif state['phase'] == 'settle' and now >= state['settle_until']:
+                app.show_tab('Downloads')
+                if not all(getattr(card,'_thumbnail_url',None) for card in app.card_widgets.values()):
+                    raise RuntimeError('Original thumbnails were not requested by actual download cards')
+                report['original_thumbnails_requested'] = True
                 state['baseline'] = baseline()
                 state.update(phase='repeat', index=0)
             elif state['phase'] == 'repeat':

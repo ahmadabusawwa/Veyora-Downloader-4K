@@ -172,13 +172,27 @@ def embed_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: 
         '-c', 'copy', '-c:s', 'mov_text' if Path(output_video_path).suffix.lower() == '.mp4' else 'srt', '-metadata:s:s:0', 'language=' + {'ar': 'ara', 'en': 'eng', 'tr': 'tur', 'ko': 'kor'}[subtitle_lang], output_video_path], checkpoint, duration=media_duration(video_path), progress=progress)
 
 
-def burn_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, progress=None):
+def burn_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, progress=None, style=None):
     # Only a fixed basename enters the filter syntax. Apostrophes, colons and
     # brackets in user paths cannot change the FFmpeg filter expression.
     with tempfile.TemporaryDirectory(prefix='veyora-burn-') as temp:
-        shutil.copyfile(srt_path, Path(temp) / 'captions.srt')
+        from .subtitle_style import make_ass
+        streams = get_ffprobe_info(video_path)['streams']
+        video = next(stream for stream in streams if stream.get('codec_type') == 'video')
+        make_ass(srt_path, Path(temp) / 'captions.ass', video['width'], video['height'], style)
         run_ffmpeg(['-threads', '2', '-filter_threads', '1', '-i', Path(video_path).resolve(), '-vf',
-            "subtitles=captions.srt:force_style='FontName=Arial,FontSize=20'",
+            "ass=captions.ass",
             '-c:v', 'libx264', '-crf', '20', '-preset', 'veryfast', '-threads', '2',
-            '-x264-params', 'rc-lookahead=4:sync-lookahead=0:ref=2', '-c:a', 'aac',
+            '-x264-params', 'rc-lookahead=4:sync-lookahead=0:ref=2', '-c:a', 'copy',
             Path(output_video_path).resolve()], checkpoint, cwd=temp, duration=media_duration(video_path), progress=progress)
+
+
+def preview_subtitles(video_path, output_image, style=None, checkpoint=lambda: None):
+    """Render an actual input frame using the export's libass style."""
+    from .subtitle_style import make_ass
+    with tempfile.TemporaryDirectory(prefix='veyora-preview-') as folder:
+        folder = Path(folder)
+        (folder/'sample.srt').write_text('1\n00:00:00,000 --> 00:00:10,000\nمعاينة الترجمة العربية — Subtitle preview\n', encoding='utf8')
+        video = next(s for s in get_ffprobe_info(video_path)['streams'] if s.get('codec_type') == 'video')
+        make_ass(folder/'sample.srt', folder/'captions.ass', video['width'], video['height'], style)
+        run_ffmpeg(['-i', Path(video_path).resolve(), '-vf', 'ass=captions.ass', '-frames:v', '1', Path(output_image).resolve()], checkpoint, cwd=folder)

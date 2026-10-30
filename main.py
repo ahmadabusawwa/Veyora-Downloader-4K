@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 # Application version
-APP_VERSION = "2.0.2"
+APP_VERSION = "2.0.3"
 
 LANGUAGES = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}
 TRANSLATION_DIRECTIONS = {'auto': ('en', 'ar'), 'auto-ar': ('en', 'ar'), 'auto-en': ('ar', 'en')}
@@ -167,6 +167,7 @@ from download_sites import (SUPPORTED_PLATFORMS, POPULAR_SITES, detect_platform,
 
 # --- SETTINGS MANAGER ---
 class SettingsManager:
+    _lock = threading.RLock()
     @staticmethod
     def load():
         if SETTINGS_FILE.exists():
@@ -181,7 +182,8 @@ class SettingsManager:
     @staticmethod
     def save(settings):
         try:
-            atomic_json_write(SETTINGS_FILE, settings)
+            with SettingsManager._lock:
+                atomic_json_write(SETTINGS_FILE, settings)
         except Exception as e:
             print("Failed to save settings:", e)
 
@@ -581,6 +583,34 @@ class DownloadQueueManager:
         self.pause_events, self.cancel_events = {}, {}
         self.ui_dirty = threading.Event()
         self.closed = False
+        from recovery_store import RecoveryStore, recovery_path
+        self.recovery = RecoveryStore(recovery_path(CONFIG_DIR))
+        self.recoverable = self.recovery.load()
+
+    def _journal(self):
+        if self.closed:
+            return self.recovery.generation
+        with self.lock:
+            return self.recovery.submit([t for t in self.recoverable if t.get('id') not in self.tasks] + [self.tasks[tid] for tid in self.task_order])
+
+    def restore_previous(self):
+        """Explicit consent only; retain IDs, output template and partial files."""
+        with self.lock:
+            for saved in self.recoverable:
+                if saved.get('id') in self.tasks:
+                    continue
+                if not is_valid_url(saved.get('url', '')):
+                    continue
+                tid = saved['id']
+                if saved.get('status') not in self.TERMINAL:
+                    saved.update(status='Queued', error=None)
+                self.tasks[tid] = saved
+                self.task_order.append(tid)
+                self.pause_events[tid], self.cancel_events[tid] = threading.Event(), threading.Event()
+            self.recoverable = []
+        self._journal()
+        self._notify_ui()
+        self._process_queue()
 
     def _notify_ui(self):
         # Worker threads never call Tk, including Tk.after().
@@ -591,21 +621,25 @@ class DownloadQueueManager:
             self.ui_dirty.clear()
             self.update_ui_callback()
 
-    def add_task(self, url, settings, title="Resolving...", selected_folder=None, video_id=""):
+    def add_task(self, url, settings, title="Resolving...", selected_folder=None, video_id="", thumbnail=""):
         if not is_valid_url(url):
             raise ValueError("Only valid HTTP(S) URLs are supported")
         url = normalize_url(url)
         tid = uuid.uuid4().hex
         with self.lock:
+            for existing in self.tasks.values():
+                if existing['url'] == url and existing['settings'] == settings and existing['status'] not in self.TERMINAL:
+                    return existing['id']
             if self.closed:
                 raise RuntimeError("Application is closing")
             self.tasks[tid] = dict(id=tid, url=url, settings=copy.deepcopy(settings), title=title,
                 progress=0.0, speed='0 KB/s', eta='Calculating...', status='Queued', error=None,
                 downloaded_file=None, show_folder_available=False, filesize=0, format_badge='',
                 selected_folder=selected_folder or settings['download_dir'],
-                platform=detect_platform(url), video_id=video_id)
+                platform=detect_platform(url), video_id=video_id, thumbnail=thumbnail)
             self.task_order.append(tid)
             self.pause_events[tid], self.cancel_events[tid] = threading.Event(), threading.Event()
+        self._journal()
         self._notify_ui()
         self._process_queue()
         return tid
@@ -632,16 +666,21 @@ class DownloadQueueManager:
                 error = future.exception() if not future.cancelled() else None
                 task.update(status='Failed', error=str(error or 'Worker exited without completion'))
             self.futures.pop(tid, None)
+        self._journal()
         self._notify_ui()
         self._process_queue()
 
     def _run_task(self, tid):
+        self.recovery.flush()  # worker: durable intent before network transfer
         task = self.tasks[tid]
         def progress_cb(task_id, data):
             with self.lock:
                 t = self.tasks.get(task_id)
                 if not t or self.cancel_events[task_id].is_set():
                     return
+                details = data.get('info_dict') or {}
+                if details.get('thumbnail'):
+                    t['thumbnail'] = details['thumbnail']
                 state = data.get('status')
                 if state == 'downloading':
                     total = data.get('total_bytes') or data.get('total_bytes_estimate') or 0
@@ -677,6 +716,7 @@ class DownloadQueueManager:
                     t.update(status='Failed', error=message)
             if history:
                 HistoryManager.add(history)
+            self._journal()
             self._notify_ui()
 
         DownloadEngine.download_task(task, progress_cb, completion_cb,
@@ -727,6 +767,7 @@ class DownloadQueueManager:
             self.task_order.remove(tid)
             self.pause_events.pop(tid, None)
             self.cancel_events.pop(tid, None)
+        self._journal()
         self._notify_ui()
 
     def set_max_concurrent(self, value):
@@ -748,11 +789,13 @@ class DownloadQueueManager:
         return tasks
 
     def shutdown(self):
+        self._journal()
         with self.lock:
             self.closed = True
             for tid in self.tasks:
                 self.cancel_events[tid].set()
                 self.pause_events[tid].clear()
+        self.recovery.close()
         self.executor.shutdown(wait=False, cancel_futures=True)
 
 
@@ -1222,7 +1265,6 @@ class VeyoraApp(ctk.CTk):
                 self.fetch_metadata_for_audio(url, task_settings)
             else:
                 self.queue_manager.add_task(url, task_settings, title="Resolving...", selected_folder=self.selected_folder)
-                self.url_entry.delete(0, 'end')
                 self.show_tab("Downloads")
             return
 
@@ -1237,7 +1279,6 @@ class VeyoraApp(ctk.CTk):
     def handle_audio_metadata(self, url, info, task_settings):
         if not info or 'error' in info:
             self.queue_manager.add_task(url, task_settings, title="Resolving...", selected_folder=self.selected_folder)
-            self.url_entry.delete(0, 'end')
             self.show_tab("Downloads")
             return
 
@@ -1247,8 +1288,7 @@ class VeyoraApp(ctk.CTk):
 
         audio_formats = info.get('audio_formats', [])
         if not audio_formats:
-            self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder)
-            self.url_entry.delete(0, 'end')
+            self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder, thumbnail=info.get('thumbnail', ''))
             self.show_tab("Downloads")
             return
 
@@ -1296,8 +1336,7 @@ class VeyoraApp(ctk.CTk):
                 task_settings['audio_format_id'] = ''
 
             self.audio_format_window.destroy()
-            self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder)
-            self.url_entry.delete(0, 'end')
+            self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder, thumbnail=info.get('thumbnail', ''))
             self.show_tab("Downloads")
 
         btn_download = ctk.CTkButton(self.audio_format_window, text="Download", command=download_with_format, fg_color="#2ecc71", hover_color="#27ae60")
@@ -1324,7 +1363,6 @@ class VeyoraApp(ctk.CTk):
                 self.fetch_metadata_for_audio(url, task_settings)
             else:
                 self.queue_manager.add_task(url, task_settings, title="Resolving...", selected_folder=self.selected_folder)
-                self.url_entry.delete(0, 'end')
                 self.show_tab("Downloads")
             return
 
@@ -1349,12 +1387,10 @@ class VeyoraApp(ctk.CTk):
                 if audio_formats:
                     self.show_audio_format_selector(url, info, audio_formats, task_settings)
                 else:
-                    self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder)
-                    self.url_entry.delete(0, 'end')
+                    self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder, thumbnail=info.get('thumbnail', ''))
                     self.show_tab("Downloads")
             else:
-                self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder, video_id=info.get('id', ''))
-                self.url_entry.delete(0, 'end')
+                self.queue_manager.add_task(url, task_settings, title=info.get('title', 'Resolving...'), selected_folder=self.selected_folder, video_id=info.get('id', ''), thumbnail=info.get('thumbnail', ''))
                 self.show_tab("Downloads")
 
     def show_playlist_selector(self, url, info):
@@ -1413,7 +1449,6 @@ class VeyoraApp(ctk.CTk):
                     self.queue_manager.add_task(entry_url, task_settings, title=entry['title'], selected_folder=self.selected_folder, video_id=entry.get('id', ''))
 
             self.playlist_window.destroy()
-            self.url_entry.delete(0, 'end')
             self.show_tab("Downloads")
 
         btn_download = ctk.CTkButton(self.playlist_window, text=f"Download Selected", command=download_selected, fg_color="#2ecc71", hover_color="#27ae60")
@@ -1895,6 +1930,16 @@ def packaged_self_test(report_path):
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    if len(sys.argv) == 5 and sys.argv[1] == '--review-features':
+        from media_validation import gui_features_review
+        sys.exit(gui_features_review(*sys.argv[2:]))
+    if len(sys.argv) == 5 and sys.argv[1] == '--review-download-child':
+        from media_validation import download_child
+        sys.exit(download_child(*sys.argv[2:]))
+    if len(sys.argv) == 4 and sys.argv[1] in ('--review-quality','--review-recovery'):
+        from media_validation import quality_review,recovery_review
+        review = quality_review if sys.argv[1]=='--review-quality' else recovery_review
+        sys.exit(review(*sys.argv[2:]))
     if len(sys.argv) == 5 and sys.argv[1] == '--review-navigation':
         from navigation_validation import run_navigation_review
         sys.exit(run_navigation_review(sys.argv[2], sys.argv[3], sys.argv[4]))

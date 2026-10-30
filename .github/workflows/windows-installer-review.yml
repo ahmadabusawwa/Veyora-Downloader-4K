@@ -2,7 +2,7 @@ name: Windows EXE and Setup review
 on:
   workflow_dispatch:
   push:
-    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.1-*', 'development/veyora-ui-*']
+    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*']
 permissions:
   contents: read
   actions: read
@@ -34,11 +34,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 41088874679 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.1-Windows-review --dir previous-review
+          gh run download 41100098152 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.2-Windows-review --dir previous-review
           if ($LASTEXITCODE) { throw 'Could not preserve the previous working Setup' }
           New-Item -ItemType Directory -Force backups | Out-Null
-          Copy-Item previous-review/dist/setup/Veyora-Pro-Setup-2.0.1.exe backups/Veyora-Pro-Setup-2.0.1-previous.exe
-          Get-FileHash backups/Veyora-Pro-Setup-2.0.1-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
+          Copy-Item previous-review/dist/setup/Veyora-Pro-Setup-2.0.2.exe backups/Veyora-Pro-Setup-2.0.2-previous.exe
+          Get-FileHash backups/Veyora-Pro-Setup-2.0.2-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
       - name: Build tested EXE and Setup
         shell: pwsh
         run: .\build_windows_2.ps1
@@ -51,17 +51,26 @@ jobs:
           "VEYORA_TEST_MODELS=$(Join-Path $env:VEYORA_CONFIG_DIR 'models')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Actual packaged installation and uninstall checks
         shell: pwsh
-        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.2.exe
+        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.3.exe
       - name: Package portable application
         shell: pwsh
-        run: Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-2.0.2-Windows-x64.zip
+        run: |
+          Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-Windows-Portable.zip
+          Copy-Item dist/setup/Veyora-Pro-Setup-2.0.3.exe dist/Veyora-Pro-Setup.exe
+          git archive --format=zip --prefix=Veyora-Pro/ --output=dist/Veyora-Pro-Full-Source.zip HEAD
+          if ($LASTEXITCODE) { throw 'Full source packaging failed' }
+          git rev-parse HEAD | Set-Content dist/BUILD_COMMIT.txt
+          Get-FileHash dist/Veyora-Pro-Full-Source.zip,dist/Veyora-Pro-Windows-Portable.zip,dist/Veyora-Pro-Setup.exe | ConvertTo-Json | Set-Content dist/SHA256.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Veyora-Pro-2.0.2-Windows-review
+          name: Veyora-Pro-2.0.3-Windows-review
           path: |
             dist/setup/*.exe
             dist/*.zip
+            dist/Veyora-Pro-Setup.exe
+            dist/BUILD_COMMIT.txt
+            dist/SHA256.json
             windows-tests.xml
             installed-translation.json
             real-video-review/**
