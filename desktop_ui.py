@@ -2422,7 +2422,7 @@ class DesktopApp(VeyoraApp):
             "cancel": ("×", lambda: self.queue_manager.cancel_task(tid)),
             "retry": ("↻", lambda: self.queue_manager.retry_task(tid)),
             "remove": ("×", lambda: self.queue_manager.remove_task(tid)),
-            "show": (self.t('فتح الموقع','Open folder'), lambda: self._show_task_file(tid)),
+            "show": (self.t('فتح الموقع','Open folder'), lambda: self._open_download_output(tid,'folder')),
             "play": (self.t('تشغيل الملف النهائي','Play final output'), lambda: self._open_download_output(tid)),
             "subtitle": (self.t('فتح ملف الترجمة','Open SRT'), lambda: self._open_download_output(tid,'subtitle')),
         }
@@ -2456,7 +2456,7 @@ class DesktopApp(VeyoraApp):
         from output_actions import final_output,launch_output
         task=next((task for task in self.queue_manager.get_tasks_by_status() if task['id']==tid),None)
         path=final_output(task,action) if task else None
-        if path:launch_output(self,path)
+        if path:launch_output(self,path,folder=action=='folder')
 
     def _update_download_card(self, task):
         tid = task["id"]
