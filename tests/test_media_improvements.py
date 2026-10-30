@@ -74,3 +74,22 @@ def test_changing_speech_model_invalidates_transcript_cache(monkeypatch,tmp_path
     first=pipeline._cache_key(media,lambda:None)
     (tmp_path/'settings.json').write_text(json.dumps(dict(speech_model='small')))
     assert pipeline._cache_key(media,lambda:None)!=first
+
+
+def test_navigation_does_not_rewrite_untouched_user_settings(monkeypatch,tmp_path):
+    import main
+    from desktop_ui import DesktopApp
+    monkeypatch.setenv('VEYORA_CONFIG_DIR',str(tmp_path))
+    settings=tmp_path/'settings.json'
+    original=b'{"auto_update_check":false,"sentinel":"keep-exactly"}'
+    settings.write_bytes(original)
+    monkeypatch.setattr(main,'SETTINGS_FILE',settings)
+    app=DesktopApp()
+    try:
+        for _ in range(3):
+            for page in ('Downloads','Translation','Convert','Settings','History','Playlist','Dashboard'):
+                app.show_tab(page)
+        assert settings.read_bytes()==original
+    finally:
+        app._on_close()
+    assert settings.read_bytes()==original

@@ -904,7 +904,7 @@ class DesktopApp(VeyoraApp):
             view['pause']()
 
     def show_tab(self, name):
-        if self.pages.active == 'Dashboard' and name != 'Dashboard':
+        if self.pages.active == 'Dashboard' and name != 'Dashboard' and getattr(self,'_dashboard_dirty',False):
             self._prepare_dashboard_settings()
         builders = dict(Dashboard=self.build_dashboard_tab, Downloads=self.build_downloads_tab,
             History=self.build_history_tab, Settings=self.build_settings_tab,
@@ -1016,6 +1016,14 @@ class DesktopApp(VeyoraApp):
         self._build_options(dashboard)
         self._build_queue(dashboard)
         self._build_status_strip()
+        self._dashboard_dirty = False
+        def changed(*_):
+            if not self._syncing_controls:
+                self._dashboard_dirty = True
+        for name in ('quality_display_var','format_display_var','source_var','target_var','sub_var','original_var','thumb_var','audio_bitrate_var','desc_var','split_var','clip_var','clip_start_var','clip_end_var','subtitle_mode_display_var'):
+            variable = getattr(self,name,None)
+            if variable is not None:
+                variable.trace_add('write',changed)
 
     def _build_url_row(self, parent):
         row = ctk.CTkFrame(parent, fg_color="transparent")
@@ -2239,8 +2247,9 @@ class DesktopApp(VeyoraApp):
             self.settings["download_subs"] = self.sub_var.get()
             if self.dashboard_subtitle_mode.get():
                 self.settings["subtitle_mode"] = self.dashboard_subtitle_mode.get()
-            if before != self.settings:
+            if before != self.settings or getattr(self,'_dashboard_dirty',False):
                 SettingsManager.save(self.settings)
+            self._dashboard_dirty = False
 
     def start_download_action(self):
         self._prepare_dashboard_settings()
