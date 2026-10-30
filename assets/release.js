@@ -11,8 +11,8 @@
     if (typeof tag !== 'string' || !/^v?\d+\.\d+\.\d+$/.test(tag)) return null;
     const version = tag.replace(/^v/, '');
     // Prefer the explicitly named Windows EXE; retain ZIP for portable-only releases.
-    for (const extension of ['exe', 'zip']) {
-      const name = `Veyora-Pro-${version}-Windows-x64.${extension}`;
+    for (const name of [`Veyora-Pro-Setup-${version}.exe`, `Veyora-Pro-${version}-Windows-x64.exe`, `Veyora-Pro-${version}-Windows-x64.zip`]) {
+      const extension = name.split('.').pop();
       const expectedPath = `/${REPO}/releases/download/${encodeURIComponent(tag)}/${name}`;
       const asset = release.assets.find(candidate => {
         if (!candidate || candidate.name !== name || candidate.state !== 'uploaded' ||

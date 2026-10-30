@@ -1,0 +1,48 @@
+name: Windows EXE and Setup review
+on:
+  workflow_dispatch:
+  push:
+    branches: ['development/veyora-2-automation']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Install packaging tools with package checksum verification
+        shell: pwsh
+        run: |
+          choco install ffmpeg --version=7.1.1 --yes --no-progress
+          if ($LASTEXITCODE) { throw 'FFmpeg package installation failed' }
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE) { throw 'Inno Setup installation failed' }
+          $exe = Get-ChildItem C:\ProgramData\chocolatey\lib\ffmpeg -Filter ffmpeg.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw 'FFmpeg executable missing' }
+          $notice = Get-ChildItem C:\ProgramData\chocolatey\lib\ffmpeg -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|COPYING)(\.txt)?$' } | Select-Object -First 1
+          if (-not $notice) { throw 'FFmpeg distribution license missing' }
+          if ($notice.FullName -ne (Join-Path $exe.DirectoryName 'LICENSE.txt')) { Copy-Item $notice.FullName (Join-Path $exe.DirectoryName 'LICENSE.txt') }
+          "VEYORA_FFMPEG_DIR=$($exe.DirectoryName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build tested EXE and Setup
+        shell: pwsh
+        run: .\build_windows_2.ps1
+      - name: Actual packaged installation and uninstall checks
+        shell: pwsh
+        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.0.exe
+      - name: Package portable application
+        shell: pwsh
+        run: Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-2.0.0-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Veyora-Pro-2.0-Windows-review
+          path: |
+            dist/setup/*.exe
+            dist/*.zip
+            windows-tests.xml
+          retention-days: 14

@@ -1,81 +1,60 @@
-# Veyora Downloader 4K
+# Veyora Pro 2.0 — review build
 
-`Python 3.12+` | `CustomTkinter` | `yt-dlp` | `FFmpeg (Required)` | `Windows` | `MIT License`
+Native Python desktop video downloader and local subtitle translator for Windows 10/11 x64. This is a development review build, **not an approved production release**. It extends the supplied 1.7 source; the original media engine, queue, history, site routing and translation modules are retained.
 
-## Overview
-**Veyora Downloader 4K** is a modern, open-source desktop application designed for downloading high-definition videos up to 4K resolution and extracting high-fidelity audio streams. Built using Python 3.12, CustomTkinter, yt-dlp, and FFmpeg, Veyora offers a fast, reliable, and user-friendly experience for managing media downloads across hundreds of web platforms.
+On Windows, double-click `RUN_VEYORA.cmd` to create an isolated environment, install the locked dependencies once and launch the application. Python 3.12 x64 is required. Setup building remains a separate operation.
 
-## Key Features
-- **Ultra-HD 4K & Quality Control**: Download videos seamlessly in 4K, 1080p, 720p, and other resolutions with automatic video and audio merging powered by FFmpeg.
-- **Universal Platform Support**: Extract media from YouTube, Vimeo, TikTok, and hundreds of other platforms supported natively by `yt-dlp`.
-- **High-Fidelity Audio Extraction**: Extract audio streams in popular formats including MP3 and M4A with customizable bitrate selection and metadata tagging via `mutagen`.
-- **Playlists & Batch Downloading**: Download complete playlists, channels, and batch video queues effortlessly.
-- **Subtitles & Thumbnails**: Automatically fetch and embed subtitles and high-resolution thumbnail images into downloaded files.
-- **Concurrent Queue Manager**: Manage multiple ongoing downloads with real-time speed monitoring, estimated time remaining (ETA), and progress indicators.
-- **Modern Flicker-Free UI**: Enjoy a sleek dark/light theme switcher built with `CustomTkinter`, complete with keyboard shortcuts, configuration persistence, and download history management.
+## Run from source
 
-## Mandatory Requirement: FFmpeg Installation
+Python 3.12, FFmpeg and ffprobe on PATH:
 
-> **Important:** **FFmpeg is strictly required** for Veyora Downloader 4K to function properly. High-resolution streams (4K/1080p) require FFmpeg to merge separate video and audio tracks and to convert audio into MP3/M4A formats.
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py
+```
 
-Follow the steps below to install **FFmpeg** on Windows before running the application:
+Use `requirements-runtime.lock` for the recorded resolved runtime versions (Python 3.12/Linux); Windows resolution must be validated. The native GUI requires a desktop display. Models download on first use; subsequent sessions reuse verified model installations. Source builds do not require administrator privileges. No Windows installer is included in this source package.
 
-### Method 1: Quick Install via Windows Terminal / PowerShell (Recommended)
-1. Open **PowerShell** or **Command Prompt** as Administrator.
-2. Run the following command using **Winget** (built into Windows 10/11):
-   ```powershell
-   winget install Gyan.FFmpeg
-   ```
-   *(Alternatively, if you use Chocolatey or Scoop)*:
-   ```powershell
-   choco install ffmpeg
-   # OR
-   scoop install ffmpeg
-   ```
-3. **Restart** your terminal (and restart Veyora if it is already open) so the system `PATH` updates automatically.
-4. **Verify Installation**: Run the command below to confirm FFmpeg is installed and recognized:
-   ```powershell
-   ffmpeg -version
-   ```
+## Main workflows
 
-### Method 2: Manual Setup (Portable)
-1. Download the latest Windows release build (`ffmpeg-release-essentials.zip`) from the official FFmpeg builds page.
-2. Extract the archive and open the `bin` folder.
-3. Copy `ffmpeg.exe` and `ffprobe.exe` and place them directly in the **same folder as `Veyora.exe`** (or add the `bin` folder path to your Windows Environment Variables `PATH`).
+- Paste an HTTP(S) link, analyze it, choose quality/container/destination, and start downloading. Enable one-click download to enqueue without the format dialog. Playlists use the retained 1.7 selection workflow. The sidebar opens video/audio, local translation, conversion, files, settings and history.
+- Download queue supports progress, speed/ETA, pause/resume, cancellation, retry and opening completed files. Cards update in place. Partial files are retained for resume; personal files are never broadly deleted.
+- Choose speech source (`auto`, `ar`, `en`, `tr`, `ko`) and a different translation target. `separate`: SRT; `embed`: SRT plus MKV subtitle track; `burn`: SRT plus burned MP4; `both`: SRT plus MKV track. Final target SRT is exported by default; original source SRT is opt-in. Original transcripts remain cached for retry.
+- Translation screen accepts local audio/video or UTF-8 SRT. For SRT select the source explicitly; speech auto-detection does not apply to text. Conversion supports MP4, MKV and MP3. Cancellation is cooperative between model operations and during FFmpeg processing.
+- Advanced download controls retain the 1.7 subtitle selection, audio format, smart mode and folder controls. Settings retains cookies, concurrent downloads and subtitle preferences. Use only cookies for content you are entitled to access. DRM circumvention is not implemented.
+- Settings offers economy/balanced/high CPU and concurrency budgets, base/small/medium speech models, update checks and explicit prerelease opt-in. Larger speech models consume more RAM and may take longer; their quality is not certified here.
 
-## Tech Stack & Dependencies
-The project relies on modern Python technologies and powerful open-source media engines:
+## Updates and Windows Setup
 
-| Dependency | Required Version | Description |
-| :--- | :--- | :--- |
-| **FFmpeg** | `Latest (Mandatory)` | Video/audio transcoding and stream merging engine |
-| **CustomTkinter** | `>=5.2.0` | Modern UI toolkit for Tkinter |
-| **yt-dlp** | `>=2025.0.0` | Media extraction engine |
-| **requests** | `>=2.31.0` | HTTP network communication library |
-| **mutagen** | `>=1.47.0` | Audio metadata tagging library |
-| **Pillow** | `>=10.0.0` | Image processing library for thumbnail rendering |
-| **darkdetect** | `>=0.8.0` | OS theme detection utility |
-| **certifi** | `>=2023.5.7` | SSL certificate authority bundle |
+See [update security](docs/UPDATE_SECURITY.md) and [Windows build](docs/WINDOWS_BUILD.md).
 
-## Usage & Keyboard Shortcuts
-1. **Paste Link**: Copy a video or playlist URL into the input field (`Ctrl + V`).
-2. **Select Format & Quality**: Choose your preferred resolution (4K, 1080p, 720p) or select Audio-only (MP3/M4A).
-3. **Download**: Click the **Download** button or press `Enter` to start downloading.
+The signed updater is implemented and tested against safe inert fixtures. **Production trust is intentionally disabled** until the owner installs a public Ed25519 signing key. It will not execute an unsigned or unverifiable update. The owner must keep the private key offline. The first upgrade from 1.7 is manual because 1.7 has no updater.
 
-### Useful Keyboard Shortcuts
-- `Ctrl + V`: Paste URL from clipboard.
-- `Enter`: Trigger media download.
-- `Ctrl + D`: Switch between Dark and Light mode.
-- `Ctrl + C`: Cancel active download queue.
+```powershell
+.\build_windows_2.ps1 -FfmpegDirectory C:\verified-tools\ffmpeg\bin
+```
 
-## Troubleshooting / FAQ & License
+Produces `Veyora-Pro-Setup-2.0.0.exe` on Windows after passing checks. Inno Setup installs per user, creates shortcuts and an uninstaller, and leaves `.veyora`, downloaded media and model files outside the application directory. This Linux session did not build or execute a Windows installer. Cross-version update, uninstall and power-loss testing remain mandatory.
 
-### Common Issues & Troubleshooting
-- **FFmpeg Not Detected**: Run `ffmpeg -version` in Command Prompt to verify it is in your `PATH`, or place `ffmpeg.exe` and `ffprobe.exe` directly inside the application directory alongside `Veyora.exe`.
-- **Merged Video Has No Audio**: This occurs if FFmpeg is missing. Install FFmpeg using `winget install Gyan.FFmpeg` and restart the program.
+## Validation actually performed
 
-### Contributing
-Contributions, issues, and feature requests are welcome! Feel free to check the Issues tab in [Veyora-Downloader-4K](https://github.com/ahmadabusawwa/Veyora-Downloader-4K).
+```bash
+python -m pytest tests -q --junitxml=review-tests.xml
+node --test tests/release.test.cjs
+python tools/inference_matrix.py
+python tools/speech_matrix.py  # needs espeak-ng; synthetic speech integration only
+python tools/gui_smoke.py --output gui-review.png
+python tools/gui_download_test.py
+python -m pip_audit -r requirements.txt -f json -o dependency-audit.json
+```
 
-### License
-This project is licensed under the MIT License.
+See [review report](docs/REVIEW_2_0.md) for exact results, limitations and unfinished work. Text inference ran in all 12 directions; this does not establish speech or translation accuracy. Synthetic Arabic recognition failed, and Turkish/Korean recognition showed errors. No claim is made that all sites, all audio, 4K workflows or Windows installation are verified.
+
+## Privacy and licenses
+
+Settings, history, models and transcript caches are local under `~/.veyora` or `VEYORA_CONFIG_DIR`. Downloads use the chosen folder. Update checks contact GitHub; media downloads contact their source sites; first-use models contact their hosts. Translation inference is local. Diagnostic URL credentials/query values are redacted and yt-dlp's unsolicited diagnostic logger is suppressed. History intentionally contains the source URL; treat that local file as private.
+
+See [third-party notices](LICENSES.md) and [model notice](MODEL_NOTICE.md). No blanket commercial redistribution clearance is claimed. FFmpeg build options and model/data licenses need review before publishing. The source baseline is saved in local Git commit `e513ce9`; development uses a separate branch. No official release has been published.

@@ -1,0 +1,309 @@
+--- 1.6.1/Veyora_Pro.spec
++++ 1.7.0/Veyora_Pro.spec
+@@ -24,7 +24,7 @@
+     datas=datas, hiddenimports=hidden, hookspath=[], hooksconfig={}, runtime_hooks=[],
+     excludes=[], noarchive=False, optimize=0)
+ pyz = PYZ(a.pure)
+-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='Veyora_Pro_1_6_1',
++exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='Veyora_Pro_1_7_0',
+     icon=str(root / 'logo.ico'), debug=False, bootloader_ignore_signals=False,
+     strip=False, upx=False, console=False, disable_windowed_traceback=False)
+-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='Veyora_Pro_1_6_1')
++coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='Veyora_Pro_1_7_0')
+--- 1.6.1/Veyora_Pro_onefile.spec
++++ 1.7.0/Veyora_Pro_onefile.spec
+@@ -24,7 +24,7 @@
+     datas=datas, hiddenimports=hidden, hookspath=[], hooksconfig={}, runtime_hooks=[],
+     excludes=[], noarchive=False, optimize=0)
+ pyz = PYZ(a.pure)
+-exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='Veyora-Pro-1.6.1-Windows-x64',
++exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='Veyora-Pro-1.7.0-Windows-x64',
+     icon=str(root / 'logo.ico'), debug=False, bootloader_ignore_signals=False,
+     strip=False, upx=False, console=False, disable_windowed_traceback=False)
+ 
+--- 1.6.1/build_windows.ps1
++++ 1.7.0/build_windows.ps1
+@@ -19,7 +19,7 @@
+ if ($LASTEXITCODE -ne 0) { throw 'Local Arabic model setup or translation test failed. Build stopped.' }
+ & $python -m PyInstaller --noconfirm --clean --distpath "$release\dist" --workpath "$release\build" Veyora_Pro_onefile.spec
+ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
+-$exe = Join-Path $release 'dist\Veyora-Pro-1.6.1-Windows-x64.exe'
++$exe = Join-Path $release 'dist\Veyora-Pro-1.7.0-Windows-x64.exe'
+ if (-not (Test-Path -LiteralPath $exe)) { throw 'Expected EXE missing.' }
+ $smoke = Join-Path $release 'exe_selftest.json'
+ # Test the actual packaged executable, dependencies, Tk, and bundled FFmpeg.
+--- 1.6.1/main.py
++++ 1.7.0/main.py
+@@ -17,16 +17,21 @@
+ from urllib.parse import urlparse
+ 
+ # Application version
+-APP_VERSION = "1.6.1"
+-
+-AUTO_TRANSLATION_MODES = ('auto', 'auto-ar', 'auto-en')
++APP_VERSION = "1.7.0"
++
++LANGUAGES = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}
+ TRANSLATION_DIRECTIONS = {'auto': ('en', 'ar'), 'auto-ar': ('en', 'ar'), 'auto-en': ('ar', 'en')}
+-SUBTITLE_CHOICES = {
+-    'Arabic (العربية - ar)': 'ar',
+-    'English (en)': 'en',
+-    'Auto-Translate: English -> Arabic': 'auto-ar',
+-    'Auto-Translate: Arabic -> English': 'auto-en',
+-}
++SUBTITLE_CHOICES = {f'{name} ({code})': code for code, name in LANGUAGES.items()}
++# Preserve saved direction keys from previous releases.
++SUBTITLE_CHOICES.update({'Auto-Translate: English -> Arabic': 'auto-ar', 'Auto-Translate: Arabic -> English': 'auto-en'})
++for source, source_name in LANGUAGES.items():
++    for target, target_name in LANGUAGES.items():
++        if source == target or (source, target) in (('en', 'ar'), ('ar', 'en')):
++            continue
++        key = f'auto-{source}-{target}'
++        TRANSLATION_DIRECTIONS[key] = (source, target)
++        SUBTITLE_CHOICES[f'Auto-Translate: {source_name} -> {target_name}'] = key
++AUTO_TRANSLATION_MODES = tuple(TRANSLATION_DIRECTIONS)
+ 
+ 
+ def selected_subtitle_language(display):
+@@ -1642,13 +1647,13 @@
+         btn_save = ctk.CTkButton(card, text="Save Settings", command=self.save_settings_action)
+         ctk.CTkLabel(card, text="Subtitle source:").grid(row=5, column=0, padx=20, pady=8, sticky="w")
+         self.translation_source_var = ctk.StringVar(value=self.settings.get('sub_lang', 'auto-ar'))
+-        ctk.CTkOptionMenu(card, values=['auto-ar', 'auto-en', 'ar', 'en'], variable=self.translation_source_var).grid(row=5, column=1, padx=20, pady=8, sticky="w")
++        ctk.CTkOptionMenu(card, values=[k for k in TRANSLATION_DIRECTIONS if k != 'auto'] + list(LANGUAGES), variable=self.translation_source_var).grid(row=5, column=1, padx=20, pady=8, sticky="w")
+         ctk.CTkLabel(card, text="auto-ar: English -> Arabic | auto-en: Arabic -> English").grid(row=6, column=0, columnspan=2, padx=20, sticky="w")
+         self.subtitle_mode_var = ctk.StringVar(value=self.settings.get('subtitle_mode', 'separate'))
+         ctk.CTkLabel(card, text="Subtitle output:").grid(row=7, column=0, padx=20, pady=8, sticky="w")
+         ctk.CTkOptionMenu(card, values=['separate', 'embed', 'burn', 'both'], variable=self.subtitle_mode_var).grid(row=7, column=1, padx=20, pady=8, sticky="w")
+         ctk.CTkLabel(card, text="Separate SRT / selectable track / burned into picture / SRT + track").grid(row=8, column=0, columnspan=2, padx=20, sticky="w")
+-        ctk.CTkLabel(card, text="Local English <-> Arabic subtitles. Speech/text stays on this device. Models download once.", wraplength=650).grid(row=9, column=0, columnspan=2, padx=20, pady=8, sticky="w")
++        ctk.CTkLabel(card, text="Local Arabic, English, Turkish and Korean subtitles. Some pairs translate via English. Models download once.", wraplength=650).grid(row=9, column=0, columnspan=2, padx=20, pady=8, sticky="w")
+         btn_save.grid(row=10, column=0, columnspan=2, padx=20, pady=20)
+ 
+     def save_settings_action(self):
+@@ -1775,12 +1780,12 @@
+         from translator.video_renderer import executable
+         from translator.translation_provider import TranslatorProvider
+         report['offline_translation'] = {}
+-        for source, target, text in [('en', 'ar', 'Hello world.'), ('ar', 'en', 'مرحبا بالعالم')]:
++        for source, target, text in [('en', 'ar', 'Hello world.'), ('ar', 'en', 'مرحبا بالعالم'), ('en', 'tr', 'Hello world.'), ('tr', 'en', 'Merhaba dünya.'), ('en', 'ko', 'Hello world.'), ('ko', 'en', '안녕하세요.')]:
+             provider = TranslatorProvider(source, target)
+             provider.prepare()
+             translated = provider.translate(text)
+             valid = (any('\u0600' <= c <= '\u06ff' for c in translated) if target == 'ar'
+-                     else bool(re.search('[A-Za-z]', translated)))
++                     else (any('가' <= c <= '힣' for c in translated) if target == 'ko' else bool(re.search('[A-Za-z]', translated))))
+             if not valid:
+                 raise RuntimeError('Packaged local translator failed: ' + source + ' -> ' + target)
+             report['offline_translation'][source + '_' + target] = translated
+--- 1.6.1/prepare_translation.py
++++ 1.7.0/prepare_translation.py
+@@ -11,11 +11,11 @@
+         if fraction is None or now - previous[0] > 1:
+             print(stage, flush=True)
+             previous[0] = now
+-    for source, target, text in [('en', 'ar', 'Hello world.'), ('ar', 'en', 'مرحبا بالعالم')]:
++    for source, target, text in [('en', 'ar', 'Hello world.'), ('ar', 'en', 'مرحبا بالعالم'), ('en', 'tr', 'Hello world.'), ('tr', 'en', 'Merhaba dünya.'), ('en', 'ko', 'Hello world.'), ('ko', 'en', '안녕하세요.')]:
+         provider = TranslatorProvider(source, target)
+         provider.prepare(progress=progress)
+         value = provider.translate(text)
+-        valid = any('\u0600' <= c <= '\u06ff' for c in value) if target == 'ar' else bool(re.search('[A-Za-z]', value))
++        valid = any('\u0600' <= c <= '\u06ff' for c in value) if target == 'ar' else (any('가' <= c <= '힣' for c in value) if target == 'ko' else bool(re.search('[A-Za-z]', value)))
+         if not valid:
+             raise RuntimeError('Offline model did not produce expected language: ' + source + ' -> ' + target)
+         print('PASS: real local ' + source + ' -> ' + target + ' translation; no Google service.', flush=True)
+--- 1.6.1/tests/test_languages.py
++++ 1.7.0/tests/test_languages.py
+@@ -0,0 +1,22 @@
++import pytest
++from translator.offline_model import translation_route, model_entry
++from translator.transcription import Transcriber
++from translator.pipeline import _cache_key
++from main import TRANSLATION_DIRECTIONS, SUBTITLE_CHOICES
++
++@pytest.mark.parametrize('source',['ar','en','tr','ko'])
++@pytest.mark.parametrize('target',['ar','en','tr','ko'])
++def test_routes(source,target):
++    if source == target:return
++    route=translation_route(source,target)
++    assert route[0][0]==source and route[-1][1]==target
++    for a,b in route:assert model_entry(a,b)['sha256']
++    assert (source,target) in TRANSLATION_DIRECTIONS.values()
++
++@pytest.mark.parametrize('language',['tr','ko'])
++def test_multilingual_speech_and_cache(language,tmp_path):
++    t=Transcriber(language=language)
++    assert t.model_size=='base' and t.language==language
++    media=tmp_path/'video';media.write_bytes(b'video')
++    assert _cache_key(media,lambda:None,language)!=_cache_key(media,lambda:None,'ar')
++    assert language in SUBTITLE_CHOICES.values()
+--- 1.6.1/translator/offline_model.py
++++ 1.7.0/translator/offline_model.py
+@@ -12,6 +12,10 @@
+ from .exceptions import TranslationError
+ 
+ MODEL_CATALOG = {
++    ('en', 'ko'): {'pair': 'en_ko', 'url': 'https://data.argosopentech.com/argospm/v1/translate-en_ko-1_1.argosmodel', 'sha256': 'e03d8e65e6d44525ec5808c3409fcf8728c76c2c76925372b6d3dc3278de17fc', 'size_mib': 115, 'prefix': 'en_ko'},
++    ('en', 'tr'): {'pair': 'en_tr', 'url': 'https://data.argosopentech.com/argospm/v1/translate-en_tr-1_5.argosmodel', 'sha256': '2d553a00880a0c21dea5b1c375535659e6bf18c9bf2ce9847c2a2fd2ff50316a', 'size_mib': 119, 'prefix': 'translate-en_tr-1_5'},
++    ('ko', 'en'): {'pair': 'ko_en', 'url': 'https://data.argosopentech.com/argospm/v1/translate-ko_en-1_1.argosmodel', 'sha256': '6da8f3db6ca40f42b1875570a1c06856f6e17c7ef62845d85de217ba548c1471', 'size_mib': 113, 'prefix': 'ko_en'},
++    ('tr', 'en'): {'pair': 'tr_en', 'url': 'https://data.argosopentech.com/argospm/v1/translate-tr_en-1_5.argosmodel', 'sha256': '15217905586561fac843efb5730aabff9a1534d5a9aa3f6ebcc0f9641394ac2d', 'size_mib': 115, 'prefix': 'translate-tr_en-1_5'},
+     ('en', 'ar'): dict(pair='en_ar', sha256='e2a6e84337f7ebbb55f9dc61dcba3a861c0d786ae5a46fa198fd8d6473f5c775', size_mib=84),
+     ('ar', 'en'): dict(pair='ar_en', sha256='bc98cd4e27ca1cebfae9b7086b2ebc635e4dbed45e7cb5f0891cb7d22feacfad', size_mib=78),
+ }
+@@ -22,7 +26,7 @@
+     try:
+         return MODEL_CATALOG[(source_lang, target_lang)]
+     except KeyError:
+-        raise TranslationError('Supported translation directions: English -> Arabic and Arabic -> English')
++        raise TranslationError('No direct model for this language pair')
+ 
+ 
+ REQUIRED = ('model/model.bin', 'model/shared_vocabulary.txt', 'sentencepiece.model')
+@@ -51,12 +55,12 @@
+     if digest.hexdigest() != entry['sha256']:
+         raise TranslationError('translation model checksum mismatch; the model was not installed')
+     with zipfile.ZipFile(archive) as package:
+-        metadata = json.loads(package.read(entry['pair'] + '/metadata.json'))
++        metadata = json.loads(package.read(entry.get('prefix', entry['pair']) + '/metadata.json'))
+         if metadata.get('from_code') != source_lang or metadata.get('to_code') != target_lang:
+             raise TranslationError('Wrong model language pair')
+         # Explicit allowlist, no arbitrary archive paths, code or sentence-splitter weights.
+         for name in (*REQUIRED, 'metadata.json', 'README.md'):
+-            info = package.getinfo(entry['pair'] + '/' + name)
++            info = package.getinfo(entry.get('prefix', entry['pair']) + '/' + name)
+             if info.file_size > 200 * 1024 * 1024:
+                 raise TranslationError('Unexpected model entry size')
+             target = destination / name
+@@ -85,14 +89,14 @@
+             work = Path(work)
+             archive = work / 'model.argosmodel'
+             local = os.environ.get('VEYORA_' + entry['pair'].upper() + '_MODEL_ARCHIVE')
+-            if not local and source_lang == 'en':
++            if not local and (source_lang, target_lang) == ('en', 'ar'):
+                 local = os.environ.get('VEYORA_AR_MODEL_ARCHIVE')
+             if local:
+                 shutil.copyfile(local, archive)
+             else:
+                 errors = []
+                 for host in ('https://data.argosopentech.com/argospm/v1/', 'https://argos-net.com/v1/'):
+-                    url = host + 'translate-' + entry['pair'] + '-1_0.argosmodel'
++                    url = entry.get('url', host + 'translate-' + entry['pair'] + '-1_0.argosmodel')
+                     checkpoint()
+                     progress(f'Downloading {direction} model (about {entry["size_mib"]} MiB, first use only)', 0)
+                     try:
+@@ -132,3 +136,12 @@
+         return target
+     finally:
+         _install_lock.release()
++
++
++def translation_route(source_lang, target_lang):
++    languages = {'ar', 'en', 'tr', 'ko'}
++    if source_lang not in languages or target_lang not in languages or source_lang == target_lang:
++        raise TranslationError('Supported translation directions require different languages among Arabic, English, Turkish and Korean')
++    if (source_lang, target_lang) in MODEL_CATALOG:
++        return [(source_lang, target_lang)]
++    return [(source_lang, 'en'), ('en', target_lang)]
+--- 1.6.1/translator/pipeline.py
++++ 1.7.0/translator/pipeline.py
+@@ -12,13 +12,13 @@
+ from .translation_provider import TranslatorProvider, release_translation_models
+ from .subtitle_generator import generate_srt
+ from .video_renderer import extract_audio, burn_subtitles, embed_subtitles
+-from .offline_model import config_root, model_entry
++from .offline_model import config_root, translation_route
+ from .exceptions import TranscriptionError
+ from .resources import processing_slot
+ 
+ 
+ def _cache_key(media, checkpoint, source_lang='en'):
+-    prefix = b'veyora-base.en-v1\0' if source_lang == 'en' else b'veyora-base-ar-v1\0'
++    prefix = ('veyora-base-v2-' + source_lang + '\0').encode('ascii')
+     digest = hashlib.sha256(prefix)
+     with media.open('rb') as stream:
+         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+@@ -69,9 +69,9 @@
+                 release_translation_models()
+ 
+     def _run(self, mode, checkpoint, progress, source_lang, target_lang):
+-        model_entry(source_lang, target_lang)
+-        source_name = 'English' if source_lang == 'en' else 'Arabic'
+-        target_name = 'Arabic' if target_lang == 'ar' else 'English'
++        translation_route(source_lang, target_lang)
++        source_name = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}[source_lang]
++        target_name = {'ar': 'Arabic', 'en': 'English', 'tr': 'Turkish', 'ko': 'Korean'}[target_lang]
+         if mode not in ('separate', 'embed', 'burn', 'both'):
+             raise ValueError('Unknown subtitle output mode')
+         self.output_dir.mkdir(parents=True, exist_ok=True)
+--- 1.6.1/translator/transcription.py
++++ 1.7.0/translator/transcription.py
+@@ -11,12 +11,12 @@
+ 
+ class Transcriber:
+     def __init__(self, model_size=None, device='cpu', language='en'):
+-        if language not in ('en', 'ar'):
+-            raise TranscriptionError('Select English or Arabic as the speech language')
++        if language not in ('en', 'ar', 'tr', 'ko'):
++            raise TranscriptionError('Select English, Arabic, Turkish or Korean as the speech language')
+         self.language = language
+         self.model_size = model_size or ('base.en' if language == 'en' else 'base')
+         if language != 'en' and self.model_size.endswith('.en'):
+-            raise TranscriptionError('Arabic speech requires a multilingual Whisper model')
++            raise TranscriptionError('Non-English speech requires a multilingual Whisper model')
+         self.device = device
+ 
+     def transcribe(self, audio_path, checkpoint=lambda: None, progress=lambda stage, fraction=None: None):
+--- 1.6.1/translator/translation_provider.py
++++ 1.7.0/translator/translation_provider.py
+@@ -2,13 +2,13 @@
+ import os
+ import threading
+ from .exceptions import TranslationError
+-from .offline_model import ensure_model, model_entry
++from .offline_model import ensure_model, model_entry, translation_route
+ 
+ _runtimes = {}
+ _runtime_lock = threading.Lock()
+ 
+ 
+-class TranslatorProvider:
++class DirectTranslatorProvider:
+     def __init__(self, source_lang='en', target_lang='ar'):
+         model_entry(source_lang, target_lang)
+         self.source_lang, self.target_lang = source_lang, target_lang
+@@ -76,3 +76,24 @@
+             model.unload_model()
+             del model, tokenizer
+     gc.collect()
++
++
++class TranslatorProvider:
++    def __init__(self, source_lang='en', target_lang='ar'):
++        self.source_lang, self.target_lang = source_lang, target_lang
++        self.cache = {}
++        self.stages = [DirectTranslatorProvider(a, b) for a, b in translation_route(source_lang, target_lang)]
++
++    def prepare(self, checkpoint=lambda: None, progress=lambda stage, fraction=None: None):
++        # Install ahead of inference, but load just one runtime at a time for pivot translation.
++        for stage in self.stages:
++            ensure_model(checkpoint, progress, stage.source_lang, stage.target_lang)
++
++    def translate(self, text, target_lang=None, checkpoint=lambda: None):
++        if target_lang is not None and target_lang != self.target_lang:
++            raise TranslationError('Target language does not match the selected direction')
++        for stage in self.stages:
++            text = stage.translate(text, checkpoint=checkpoint)
++            if len(self.stages) > 1:
++                release_translation_models()
++        return text
+--- 1.6.1/translator/video_renderer.py
++++ 1.7.0/translator/video_renderer.py
+@@ -163,7 +163,7 @@
+ def embed_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, subtitle_lang='ar', progress=None):
+     # MKV supports copied media codecs and a selectable UTF-8 SRT track.
+     run_ffmpeg(['-i', video_path, '-i', srt_path, '-map', '0:v:0', '-map', '0:a?', '-map', '1:0',
+-        '-c', 'copy', '-c:s', 'srt', '-metadata:s:s:0', 'language=' + {'ar': 'ara', 'en': 'eng'}[subtitle_lang], output_video_path], checkpoint, duration=media_duration(video_path), progress=progress)
++        '-c', 'copy', '-c:s', 'srt', '-metadata:s:s:0', 'language=' + {'ar': 'ara', 'en': 'eng', 'tr': 'tur', 'ko': 'kor'}[subtitle_lang], output_video_path], checkpoint, duration=media_duration(video_path), progress=progress)
+ 
+ 
+ def burn_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: None, progress=None):

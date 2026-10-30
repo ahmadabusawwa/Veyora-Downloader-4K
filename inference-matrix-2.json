@@ -1,0 +1,101 @@
+{
+  "scope": "Real text inference; no speech recognition or human accuracy evaluation",
+  "results": [
+    {
+      "source": "en",
+      "target": "ar",
+      "input": "Hello. Today the weather is beautiful.",
+      "status": "inference_completed",
+      "output": "اليوم الطقس جميل",
+      "seconds": 0.22361511999997674
+    },
+    {
+      "source": "en",
+      "target": "tr",
+      "input": "Hello. Today the weather is beautiful.",
+      "status": "inference_completed",
+      "output": "Merhaba. Bugün hava güzel.",
+      "seconds": 0.1886007860000518
+    },
+    {
+      "source": "en",
+      "target": "ko",
+      "input": "Hello. Today the weather is beautiful.",
+      "status": "inference_completed",
+      "output": "안녕하세요. 오늘 날씨가 아름답습니다.",
+      "seconds": 0.18608555599996635
+    },
+    {
+      "source": "ar",
+      "target": "en",
+      "input": "مرحبا. الطقس جميل اليوم.",
+      "status": "inference_completed",
+      "output": "It's beautiful today.",
+      "seconds": 0.11374670199995762
+    },
+    {
+      "source": "ar",
+      "target": "tr",
+      "input": "مرحبا. الطقس جميل اليوم.",
+      "status": "inference_completed",
+      "output": "Bugün güzel.",
+      "seconds": 0.25207131699994534
+    },
+    {
+      "source": "ar",
+      "target": "ko",
+      "input": "مرحبا. الطقس جميل اليوم.",
+      "status": "inference_completed",
+      "output": "오늘도 아름답습니다.",
+      "seconds": 0.2981383790000791
+    },
+    {
+      "source": "tr",
+      "target": "en",
+      "input": "Merhaba. Bugün hava güzel.",
+      "status": "inference_completed",
+      "output": "Hello. The weather is beautiful today.",
+      "seconds": 0.19990758299991285
+    },
+    {
+      "source": "tr",
+      "target": "ar",
+      "input": "Merhaba. Bugün hava güzel.",
+      "status": "inference_completed",
+      "output": "مرحبا الطقس جميل اليوم",
+      "seconds": 0.3082401490000848
+    },
+    {
+      "source": "tr",
+      "target": "ko",
+      "input": "Merhaba. Bugün hava güzel.",
+      "status": "inference_completed",
+      "output": "안녕하세요. 날씨가 아름답습니다.",
+      "seconds": 0.30544653699996616
+    },
+    {
+      "source": "ko",
+      "target": "en",
+      "input": "안녕하세요. 오늘 날씨가 좋습니다.",
+      "status": "inference_completed",
+      "output": "Hello. Today's weather is good.",
+      "seconds": 0.14308942300010585
+    },
+    {
+      "source": "ko",
+      "target": "ar",
+      "input": "안녕하세요. 오늘 날씨가 좋습니다.",
+      "status": "inference_completed",
+      "output": "مرحباً، الطقس اليوم جيد",
+      "seconds": 0.31543657300005634
+    },
+    {
+      "source": "ko",
+      "target": "tr",
+      "input": "안녕하세요. 오늘 날씨가 좋습니다.",
+      "status": "inference_completed",
+      "output": "Merhaba. Bugünün havası iyi.",
+      "seconds": 0.3852680859999964
+    }
+  ]
+}

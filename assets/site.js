@@ -23,7 +23,7 @@
       notice.textContent = 'تم تحديث معلومات الحزمة من GitHub Releases.';
     }).catch(() => {
       // The pinned, verified release link in HTML remains usable without the API or JavaScript.
-      notice.textContent = 'تعذّر تحديث معلومات أحدث إصدار. رابط الإصدار 1.5.0 المباشر ما زال متاحًا؛ يمكنك مراجعة كل الإصدارات.';
+      notice.textContent = 'تعذّر تحديث معلومات الحزمة؛ الزر يفتح أحدث إصدار مستقر على GitHub.';
     }).finally(() => clearTimeout(timer));
   }
   document.getElementById('copy-checksum').addEventListener('click', async () => {

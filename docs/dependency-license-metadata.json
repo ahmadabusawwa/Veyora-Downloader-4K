@@ -1,0 +1,117 @@
+[
+  {
+    "name": "customtkinter",
+    "version": "6.0.0",
+    "license": "Creative Commons Zero v1.0 Universal",
+    "project_urls": null
+  },
+  {
+    "name": "yt-dlp",
+    "version": "2026.10.26",
+    "license": "Unlicense",
+    "project_urls": [
+      "Documentation, https://github.com/yt-dlp/yt-dlp#readme",
+      "Repository, https://github.com/yt-dlp/yt-dlp",
+      "Tracker, https://github.com/yt-dlp/yt-dlp/issues",
+      "Funding, https://github.com/yt-dlp/yt-dlp/blob/master/Maintainers.md#maintainers"
+    ]
+  },
+  {
+    "name": "Pillow",
+    "version": "13.0.0",
+    "license": "MIT-CMU",
+    "project_urls": [
+      "Release notes, https://pillow.readthedocs.io/en/stable/releasenotes/index.html",
+      "Changelog, https://github.com/python-pillow/Pillow/releases",
+      "Documentation, https://pillow.readthedocs.io",
+      "Funding, https://tidelift.com/lifter/search/pypi/pillow",
+      "Homepage, https://python-pillow.org",
+      "Mastodon, https://fosstodon.org/@pillow",
+      "Security, https://pillow.readthedocs.io/en/stable/handbook/security.html",
+      "Source, https://github.com/python-pillow/Pillow"
+    ]
+  },
+  {
+    "name": "requests",
+    "version": "2.34.2",
+    "license": "Apache-2.0",
+    "project_urls": [
+      "Documentation, https://requests.readthedocs.io",
+      "Source, https://github.com/psf/requests"
+    ]
+  },
+  {
+    "name": "faster-whisper",
+    "version": "1.2.1",
+    "license": "MIT",
+    "project_urls": null
+  },
+  {
+    "name": "ctranslate2",
+    "version": "4.8.4",
+    "license": "MIT",
+    "project_urls": [
+      "Documentation, https://opennmt.net/CTranslate2",
+      "Forum, https://forum.opennmt.net",
+      "Gitter, https://gitter.im/OpenNMT/CTranslate2",
+      "Source, https://github.com/OpenNMT/CTranslate2"
+    ]
+  },
+  {
+    "name": "sentencepiece",
+    "version": "0.2.2",
+    "license": "Apache-2.0",
+    "project_urls": [
+      "Homepage, https://github.com/google/sentencepiece"
+    ]
+  },
+  {
+    "name": "av",
+    "version": "16.1.0",
+    "license": "BSD-3-Clause",
+    "project_urls": [
+      "Bug Tracker, https://github.com/PyAV-Org/PyAV/issues",
+      "Source Code, https://github.com/PyAV-Org/PyAV",
+      "homepage, https://pyav.basswood-io.com"
+    ]
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.2",
+    "license": "Apache-2.0 OR BSD-3-Clause",
+    "project_urls": [
+      "changelog, https://cryptography.io/en/latest/changelog/",
+      "documentation, https://cryptography.io/",
+      "homepage, https://github.com/pyca/cryptography",
+      "issues, https://github.com/pyca/cryptography/issues",
+      "source, https://github.com/pyca/cryptography/"
+    ]
+  },
+  {
+    "name": "arabic-reshaper",
+    "version": "3.0.1",
+    "license": "MIT",
+    "project_urls": [
+      "Homepage, https://github.com/mpcabd/python-arabic-reshaper/",
+      "Repository, https://github.com/mpcabd/python-arabic-reshaper/"
+    ]
+  },
+  {
+    "name": "python-bidi",
+    "version": "0.6.12",
+    "license": null,
+    "project_urls": [
+      "Changelog, https://github.com/MeirKriheli/python-bidi/blob/master/CHANGELOG.rst",
+      "Documentation, https://python-bidi.readthedocs.io/en/latest/",
+      "Homepage, https://github.com/MeirKriheli/python-bidi",
+      "Issues, https://github.com/MeirKriheli/python-bidi/issues",
+      "Repository, https://github.com/MeirKriheli/python-bidi"
+    ]
+  },
+  {
+    "name": "onnxruntime",
+    "version": "1.31.1",
+    "license": "MIT License",
+    "project_urls": null
+  }
+]

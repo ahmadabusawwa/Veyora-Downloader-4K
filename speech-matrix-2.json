@@ -1,0 +1,85 @@
+{
+  "scope": "Actual recognition and translation of espeak-ng synthetic speech; not representative human audio or a quality certification",
+  "sources": [
+    {
+      "source": "en",
+      "expected_text": "Hello. Today the weather is beautiful.",
+      "transcript": "Hello, today the weather is beautiful.",
+      "segments": 1,
+      "recognized_language": "en",
+      "translations": [
+        {
+          "target": "ar",
+          "output": "مرحبا، اليوم الطقس جميل."
+        },
+        {
+          "target": "tr",
+          "output": "Merhaba, bugün hava güzel."
+        },
+        {
+          "target": "ko",
+          "output": "안녕하세요, 오늘 날씨가 아름답습니다."
+        }
+      ],
+      "status": "completed",
+      "seconds": 22.654149061999988
+    },
+    {
+      "source": "ar",
+      "expected_text": "مرحبا. الطقس جميل اليوم.",
+      "transcript": "",
+      "segments": 0,
+      "recognized_language": "ar",
+      "translations": [],
+      "status": "failed",
+      "error": "ValueError: No speech recognized",
+      "seconds": 2.641501313000049
+    },
+    {
+      "source": "tr",
+      "expected_text": "Merhaba. Bugün hava güzel.",
+      "transcript": "Ben Haba, bu gün Haba Yulel",
+      "segments": 1,
+      "recognized_language": "tr",
+      "translations": [
+        {
+          "target": "en",
+          "output": "I Haba, this day Haba Yulel"
+        },
+        {
+          "target": "ar",
+          "output": "أنا هابا، هذا اليوم هابا يول"
+        },
+        {
+          "target": "ko",
+          "output": "I Haba, 이 일 Haba Yulel"
+        }
+      ],
+      "status": "completed",
+      "seconds": 2.848328226000035
+    },
+    {
+      "source": "ko",
+      "expected_text": "안녕하세요. 오늘 날씨가 좋습니다.",
+      "transcript": "안녕하세요. 오묻하우씨가 췄습니다.",
+      "segments": 2,
+      "recognized_language": "ko",
+      "translations": [
+        {
+          "target": "en",
+          "output": "Hello. Oh, Oh, Oh."
+        },
+        {
+          "target": "ar",
+          "output": "مرحباً"
+        },
+        {
+          "target": "tr",
+          "output": "Merhaba, Oh, Oh, Oh."
+        }
+      ],
+      "status": "completed",
+      "seconds": 5.133879278999984
+    }
+  ]
+}

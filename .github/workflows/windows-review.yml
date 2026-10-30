@@ -1,0 +1,25 @@
+name: Windows review (no publication)
+on:
+  workflow_dispatch:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - run: python -m pip install -r requirements-build.txt
+      - run: python -m pytest tests -q --junitxml=windows-tests.xml
+      - run: python tools/gui_smoke.py --output gui-review.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-review-evidence
+          path: |
+            windows-tests.xml
+            gui-review.png

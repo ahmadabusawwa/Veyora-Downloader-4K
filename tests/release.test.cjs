@@ -58,3 +58,9 @@ test('falls back to the matching ZIP when the EXE URL is invalid', () => {
   data.assets.push({name:'Veyora-Pro-1.5.0-Windows-x64.exe',size:235247060,state:'uploaded',browser_download_url:'https://evil.example/app.exe'});
   assert.equal(pickRelease(data).format,'ZIP');
 });
+
+test('prefers the new per-user Setup package', () => {
+  const data=fixture('v2.0.0');
+  data.assets.push({name:'Veyora-Pro-Setup-2.0.0.exe',size:1000,state:'uploaded',browser_download_url:`https://github.com/${REPO}/releases/download/v2.0.0/Veyora-Pro-Setup-2.0.0.exe`});
+  assert.equal(pickRelease(data).name,'Veyora-Pro-Setup-2.0.0.exe');
+});
