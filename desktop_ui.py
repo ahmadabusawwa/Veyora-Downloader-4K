@@ -3104,7 +3104,7 @@ class DesktopApp(VeyoraApp):
                 self.settings['contextual_translation'] = context.get()
                 SettingsManager.save(self.settings)
             ctk.CTkCheckBox(card,text=self.t('تحسين وضوح الكلام (تجريبي، اختياري)','Enhance dialogue (experimental, optional)'),variable=enhance,command=store_speech_options).grid(row=8,column=0,sticky='w',padx=24,pady=6)
-            ctk.CTkCheckBox(card,text=self.t('جمع أجزاء الجملة قبل الترجمة (اختياري)','Join sentence fragments before translating (optional)'),variable=context,command=store_speech_options).grid(row=9,column=0,sticky='w',padx=24,pady=6)
+            ctk.CTkCheckBox(card,text=self.t('ترجمة بالسياق: حتى جملتين (اختياري)','Translate with context: up to two sentences (optional)'),variable=context,command=store_speech_options).grid(row=9,column=0,sticky='w',padx=24,pady=6)
             from media_options_ui import subtitle_options
             self.ghost_button(buttons,self.t('مظهر ومعاينة الترجمة','Subtitle style & preview'),lambda:subtitle_options(self,path),width=190).pack(side='left',padx=6)
         self._local_views[kind] = dict(render=render, pause=pause)

@@ -93,3 +93,10 @@ def test_navigation_does_not_rewrite_untouched_user_settings(monkeypatch,tmp_pat
     finally:
         app._on_close()
     assert settings.read_bytes()==original
+
+
+def test_context_keeps_antecedent_with_following_sentence():
+    from translator.context_segments import sentence_groups
+    groups=list(sentence_groups([Segment(start=0,end=3,text='I brought you daffodils in a pretty string.'),Segment(start=3,end=6,text="But they won't flower like they did last spring.")]))
+    assert len(groups)==1 and 'daffodils' in groups[0].text and 'last spring' in groups[0].text
+    assert groups[0].start==0 and groups[0].end==6
