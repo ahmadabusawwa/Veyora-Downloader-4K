@@ -202,6 +202,8 @@ def gui_features_review(media,folder,stage):
                     assert app.settings['quality']=='720p (HD)'
                     app.url_entry.delete(0,'end')
                     finish();return
+                app.settings['remember_public_links']=True
+                app.remember_link_var.set(True)
                 app.url_entry.delete(0,'end');app.url_entry.insert(0,public)
                 app.quality_display_var.set(app._quality_to_display('720p (HD)'))
                 for _ in range(20):

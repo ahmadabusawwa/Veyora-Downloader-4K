@@ -1042,7 +1042,7 @@ class DesktopApp(VeyoraApp):
 
         if not hasattr(self, '_draft_url'):
             from session_state import public_draft
-            self._draft_url = ctk.StringVar(value=public_draft(self.settings.get('saved_public_url', '')))
+            self._draft_url = ctk.StringVar(value=public_draft(self.settings.get('saved_public_url', '') if self.settings.get('remember_public_links',False) else ''))
             self._draft_save_id = None
             self._draft_revision = 0
             def remember(*_):
@@ -1051,7 +1051,7 @@ class DesktopApp(VeyoraApp):
                     self.after_cancel(self._draft_save_id)
                 def save():
                     self._draft_save_id = None
-                    self.settings['saved_public_url'] = public_draft(self._draft_url.get())
+                    self.settings['saved_public_url'] = public_draft(self._draft_url.get()) if self.settings.get('remember_public_links',False) else ''
                     import copy
                     snapshot = copy.deepcopy(self.settings)
                     revision = self._draft_revision
@@ -1074,6 +1074,16 @@ class DesktopApp(VeyoraApp):
             font=("Segoe UI", 14),
         )
         self.url_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+        self.remember_link_var = ctk.BooleanVar(value=self.settings.get('remember_public_links',False))
+        def remember_preference():
+            self.settings['remember_public_links'] = self.remember_link_var.get()
+            from session_state import public_draft
+            self.settings['saved_public_url'] = public_draft(self._draft_url.get()) if self.remember_link_var.get() else ''
+            self._draft_revision += 1
+            SettingsManager.save(self.settings)
+        ctk.CTkCheckBox(row,text=self.t('حفظ الروابط العامة بعد إعادة التشغيل (اختياري)','Remember public links after restart (optional)'),
+            variable=self.remember_link_var,command=remember_preference,font=('Segoe UI',10),height=20,checkbox_width=16,checkbox_height=16).grid(row=1,column=0,sticky='w',pady=(4,0))
+
         self.url_entry.bind("<Button-3>", self.show_url_context_menu)
 
         self.ghost_button(
@@ -3249,7 +3259,7 @@ class DesktopApp(VeyoraApp):
         if hasattr(self, '_draft_url'):
             self._draft_revision += 1
             from session_state import public_draft
-            draft = public_draft(self._draft_url.get())
+            draft = public_draft(self._draft_url.get()) if self.settings.get('remember_public_links',False) else ''
             if draft != self.settings.get('saved_public_url',''):
                 self.settings['saved_public_url'] = draft
                 SettingsManager.save(self.settings)
