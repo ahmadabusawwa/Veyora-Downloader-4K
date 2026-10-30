@@ -1,0 +1,54 @@
+{
+  "ok": true,
+  "version": "2.0.2",
+  "backend": "Actual installed GUI, real yt-dlp, local HTTP playlist",
+  "errors": [],
+  "playlist_entries": [
+    {
+      "id": "index-1",
+      "title": "Authorized local playlist (1)",
+      "duration": 0,
+      "url": "http://127.0.0.1:64179/first.mp4",
+      "thumbnail": null
+    },
+    {
+      "id": "index-2",
+      "title": "Authorized local playlist (2)",
+      "duration": 0,
+      "url": "http://127.0.0.1:64179/second.mp4",
+      "thumbnail": null
+    }
+  ],
+  "playlist_downloads_ok": true,
+  "before": {
+    "widgets": 913,
+    "callbacks": 4,
+    "threads": 4,
+    "memory_bytes": 127901696,
+    "key_binding": "if {\"[1486899628288handle_global_shortcuts %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n",
+    "wheel_binding": "if {\"[1486900345088_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486901056576_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486901148416_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486905177792_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486905268160_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n"
+  },
+  "after": {
+    "widgets": 913,
+    "callbacks": 4,
+    "threads": 4,
+    "memory_bytes": 128077824,
+    "key_binding": "if {\"[1486899628288handle_global_shortcuts %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n",
+    "wheel_binding": "if {\"[1486900345088_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486901056576_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486901148416_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486905177792_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[1486905268160_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n"
+  },
+  "build_counts": {
+    "Dashboard": 1,
+    "Playlist": 1,
+    "Downloads": 1,
+    "Translation": 1,
+    "Convert": 1,
+    "History": 1,
+    "Settings": 1
+  },
+  "repeated_clicks_per_page": 20,
+  "rapid_rounds": 20,
+  "max_navigation_call_seconds": 0.016000000000076398,
+  "memory_growth_bytes": 176128,
+  "navigation_ok": true,
+  "ui_max_gap_seconds": 0.3280000000000882
+}
