@@ -14,3 +14,6 @@ sentencepiece==0.2.2
 ctranslate2==4.8.4
 cryptography==50.0.2
 packaging==26.3
+
+# Keep the Windows tqdm dependency in cross-platform hash locks.
+colorama==0.4.6
