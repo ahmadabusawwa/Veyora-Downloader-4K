@@ -72,7 +72,10 @@ def test_actual_ytdlp_http_download(sample, tmp_path):
 
 def test_actual_download_cancel_resume_uses_range(tmp_path):
     import time
-    payload = bytes(range(256)) * 8192
+    from translator.video_renderer import run_ffmpeg
+    valid=tmp_path/'valid-resume.mp4'
+    run_ffmpeg(['-f','lavfi','-i','testsrc2=s=640x360:r=15:d=4','-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',valid])
+    payload = valid.read_bytes()
     ranges = []
     class Media(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):

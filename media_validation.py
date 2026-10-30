@@ -73,27 +73,53 @@ def quality_review(wave,folder):
                 return float(np.sqrt(np.mean(samples*samples)))
         report['mixture_speech_to_music_rms_db']=20*math.log10(max(1e-9,rms(folder/'reference-16k.wav')*.35)/max(1e-9,rms(folder/'original-music.wav')*.8))
         recognizer=Transcriber(language='en')
-        for name in ('ordinary','loud_music','pitch_modulated_vocal'):
+        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal'):
             media=folder/(name+'.wav')
-            if name=='ordinary':
+            if name in ('ordinary','quiet_speech'):
                 import shutil
-                shutil.copyfile(wave,media)
+                if name=='ordinary':shutil.copyfile(wave,media)
+                else:run_ffmpeg(['-i',wave,'-af','volume=0.015',media])
             else:
                 # Known reference speech; deterministic original accompaniment, not downloaded copyrighted music.
                 speech_filter='[0:a]aformat=channel_layouts=stereo,volume=0.35[s];'
                 if name=='pitch_modulated_vocal':
                     speech_filter='[0:a]vibrato=f=5:d=0.6,aformat=channel_layouts=stereo,volume=0.35[s];'
+                music_gain='0.08' if name=='light_music' else '0.8'
                 run_ffmpeg(['-i',wave,'-i',folder/'original-music.wav',
-                    '-filter_complex',speech_filter+'[1:a]volume=0.8[m];[s][m]amix=inputs=2:duration=first:normalize=0[out]', '-map','[out]',media])
+                    '-filter_complex',speech_filter+f'[1:a]volume={music_gain}[m];[s][m]amix=inputs=2:duration=first:normalize=0[out]', '-map','[out]',media])
             for enhanced in (False,True):
                 audio=folder/(name+('-enhanced' if enhanced else '-baseline')+'.wav')
                 started=time.monotonic()
                 (enhance_speech if enhanced else extract_audio)(media,audio)
                 segments,_=recognizer.transcribe(str(audio))
                 text=' '.join(s.text.strip() for s in segments)
-                report['recognition'].append(dict(sample=name,enhanced=enhanced,reference=reference,text=text,wer=wer(reference,text),seconds=round(time.monotonic()-started,3)))
+                from navigation_validation import memory_bytes
+                report['recognition'].append(dict(sample=name,enhanced=enhanced,reference=reference,text=text,wer=wer(reference,text),seconds=round(time.monotonic()-started,3),working_set_bytes=memory_bytes()))
         pairs={name:[r for r in report['recognition'] if r['sample']==name] for name in ('ordinary','loud_music','pitch_modulated_vocal')}
         report['speech_improvement_verified_on_fixture'] = pairs['loud_music'][1]['wer'] < pairs['loud_music'][0]['wer'] and pairs['ordinary'][1]['wer'] <= pairs['ordinary'][0]['wer']
+        release_speech_model()
+        from translator import benchmark_reference
+        old_recognizer=benchmark_reference.Transcriber(language='en')
+        report['asr_before_after']=[]
+        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal'):
+            started=time.monotonic();segments,_=old_recognizer.transcribe(str(folder/(name+'-baseline.wav')))
+            text=' '.join(s.text.strip() for s in segments)
+            after=next(row for row in report['recognition'] if row['sample']==name and not row['enhanced'])
+            report['asr_before_after'].append(dict(sample=name,before_commit='ffd9c5960afc732bf1502352c1e29a5870176dbd',before_text=text,before_wer=wer(reference,text),after_text=after['text'],after_wer=after['wer'],before_seconds=round(time.monotonic()-started,3),after_seconds=after['seconds'],working_set_before_bytes=memory_bytes(),working_set_after_bytes=after['working_set_bytes']))
+        report['asr_regression_detected']=any(r['after_wer']>r['before_wer'] for r in report['asr_before_after'])
+        benchmark_reference.release_speech_model()
+        # Evaluate softer VAD separately; never adopt it without lower WER and a hallucination check.
+        recognizer.vad_parameters={'threshold':.35,'speech_pad_ms':400,'min_speech_duration_ms':100}
+        report['soft_vad_candidate']=[]
+        for name in ('ordinary','light_music','loud_music','quiet_speech'):
+            started=time.monotonic();segments,_=recognizer.transcribe(str(folder/(name+'-baseline.wav')))
+            text=' '.join(s.text.strip() for s in segments)
+            report['soft_vad_candidate'].append(dict(sample=name,text=text,wer=wer(reference,text),seconds=round(time.monotonic()-started,3)))
+        del recognizer.vad_parameters
+        music_only=folder/'music-only-16k.wav';extract_audio(folder/'original-music.wav',music_only)
+        segments,_=recognizer.transcribe(str(music_only))
+        report['music_only_text']=' '.join(s.text.strip() for s in segments)
+        report['music_only_hallucination_detected']=bool(report['music_only_text'])
         release_speech_model()
         provider=TranslatorProvider('en','ar');provider.prepare()
         samples=[['But they won\'t flower','like they did last spring.'], ['Please download this video','and save the subtitles.'], ['I brought you daffodils in a pretty string.','But they won\'t flower like they did last spring.']]
@@ -123,6 +149,10 @@ def quality_review(wave,folder):
         srt=folder/'style-ar.srt';srt.write_text('1\n00:00:00,000 --> 00:00:01,900\nمعاينة الترجمة العربية دون قص الحروف\n',encoding='utf8')
         burn_subtitles(video,srt,folder/'style-burn.mp4',style=style)
         report['style_preview_and_export']=True
+        if report.get('asr_regression_detected'):
+            raise RuntimeError('ASR reference comparison detected a regression; do not deliver as accepted')
+        if report.get('music_only_hallucination_detected'):
+            raise RuntimeError('ASR returned words for the music-only control; quality acceptance failed')
         report['ok']=True
     except Exception as exc:
         import traceback

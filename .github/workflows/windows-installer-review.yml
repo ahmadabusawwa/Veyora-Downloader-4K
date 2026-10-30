@@ -2,7 +2,7 @@ name: Windows EXE and Setup review
 on:
   workflow_dispatch:
   push:
-    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*']
+    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*', 'development/veyora-2.0.3-final-fixes']
 concurrency:
   group: windows-review-${{ github.ref }}
   cancel-in-progress: true
@@ -22,8 +22,12 @@ jobs:
       - name: Install packaging tools with package checksum verification
         shell: pwsh
         run: |
-          choco install ffmpeg --version=7.1.1 --yes --no-progress
-          if ($LASTEXITCODE) { throw 'FFmpeg package installation failed' }
+          foreach ($attempt in 1..3) {
+            choco install ffmpeg --version=7.1.1 --yes --no-progress
+            if (-not $LASTEXITCODE) { break }
+            if ($attempt -eq 3) { throw 'FFmpeg package installation failed after bounded retries' }
+            Start-Sleep -Seconds 5
+          }
           choco install innosetup --yes --no-progress
           if ($LASTEXITCODE) { throw 'Inno Setup installation failed' }
           $exe = Get-ChildItem C:\ProgramData\chocolatey\lib\ffmpeg -Filter ffmpeg.exe -Recurse | Select-Object -First 1
@@ -37,11 +41,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 41100098152 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.2-Windows-review --dir previous-review
+          gh run download 41126099174 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-Setup --dir previous-review
           if ($LASTEXITCODE) { throw 'Could not preserve the previous working Setup' }
           New-Item -ItemType Directory -Force backups | Out-Null
-          Copy-Item previous-review/dist/setup/Veyora-Pro-Setup-2.0.2.exe backups/Veyora-Pro-Setup-2.0.2-previous.exe
-          Get-FileHash backups/Veyora-Pro-Setup-2.0.2-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
+          Copy-Item previous-review/Veyora-Pro-Setup.exe backups/Veyora-Pro-Setup-2.0.3-previous.exe
+          if ((Get-FileHash backups/Veyora-Pro-Setup-2.0.3-previous.exe).Hash -ne '6E3F669D7D8759CEEDBE876899CA898B8D79C9C0467F6265CE8B7C65A211FCB8') { throw 'Previous Setup hash mismatch' }
+          Get-FileHash backups/Veyora-Pro-Setup-2.0.3-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
       - name: Build tested EXE and Setup
         shell: pwsh
         run: .\build_windows_2.ps1
@@ -54,28 +59,53 @@ jobs:
           "VEYORA_TEST_MODELS=$(Join-Path $env:VEYORA_CONFIG_DIR 'models')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Actual packaged installation and uninstall checks
         shell: pwsh
-        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-Setup-2.0.3.exe
-      - name: Package portable application
+        run: .\tools\test_installer.ps1 -Setup .\dist\setup\Veyora-Pro-2.0.3-Setup.exe
+      - name: Generate report from actual outcomes
+        if: always()
+        shell: pwsh
+        run: python tools/write_test_report.py
+      - name: Package exact source and portable outputs
         shell: pwsh
         run: |
-          Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-Windows-Portable.zip
-          Copy-Item dist/setup/Veyora-Pro-Setup-2.0.3.exe dist/Veyora-Pro-Setup.exe
-          git archive --format=zip --prefix=Veyora-Pro/ --output=dist/Veyora-Pro-Full-Source.zip HEAD
-          if ($LASTEXITCODE) { throw 'Full source packaging failed' }
-          git rev-parse HEAD | Set-Content dist/BUILD_COMMIT.txt
-          Get-FileHash dist/Veyora-Pro-Full-Source.zip,dist/Veyora-Pro-Windows-Portable.zip,dist/Veyora-Pro-Setup.exe | ConvertTo-Json | Set-Content dist/SHA256.json
+          Compress-Archive dist\Veyora-Pro\* dist\Veyora-Pro-2.0.3-Windows-Portable.zip
+          Copy-Item dist/setup/Veyora-Pro-2.0.3-Setup.exe dist/Veyora-Pro-2.0.3-Setup.exe
+          git archive --format=zip --prefix=Veyora-Pro/ --output=dist/Veyora-Pro-2.0.3-Full-Source.zip HEAD
+          if ($LASTEXITCODE) { throw 'Source archive failed' }
+          python tools/verify_delivery.py
+          if ($LASTEXITCODE) { throw 'Delivery verification failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-2.0.3-Full-Source
+          path: dist/Veyora-Pro-2.0.3-Full-Source.zip
+          compression-level: 0
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-2.0.3-Windows-Portable
+          path: dist/Veyora-Pro-2.0.3-Windows-Portable.zip
+          compression-level: 0
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-2.0.3-Setup
+          path: dist/Veyora-Pro-2.0.3-Setup.exe
+          compression-level: 0
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Veyora-Pro-2.0.3-Windows-review
+          name: Veyora-Pro-2.0.3-Test-Report
           path: |
-            dist/setup/*.exe
-            dist/*.zip
-            dist/Veyora-Pro-Setup.exe
-            dist/BUILD_COMMIT.txt
-            dist/SHA256.json
+            dist/*Test-Report.md
+            dist/*File-Verification.json
+            dist/actual-test-results.json
             windows-tests.xml
             installed-translation.json
             real-video-review/**
-            backups/**
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Veyora-Pro-2.0.3-Previous-Backup
+          path: backups/**
           retention-days: 90

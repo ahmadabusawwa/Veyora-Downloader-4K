@@ -95,9 +95,11 @@ def run_video_review(media_path, cancel_media_path, report_directory):
             raise RuntimeError('Actual English speech recognition did not recover expected sample words')
         if sum(word in target_text for word in ('مرحبا', 'مرحباً', 'الطقس', 'جميل', 'تنزيل', 'تحميل', 'ترجمة')) < 2:
             raise RuntimeError('Actual translation did not recover expected Arabic sample words')
-        if len(source) != len(translated) or not source:
+        from translator.recognition_policy import automatic_context
+        source_groups=list(automatic_context(source))
+        if len(source_groups) != len(translated) or not source:
             raise RuntimeError('Source and translated cue counts differ')
-        for a, b in zip(source, translated):
+        for a, b in zip(source_groups, translated):
             if not (0 <= b.start <= b.end and abs(a.start-b.start) < .002 and abs(a.end-b.end) < .002):
                 raise RuntimeError('Translated SRT timing does not match the recognized speech')
         video = Path(result['video'])

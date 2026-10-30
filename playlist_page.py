@@ -2,6 +2,7 @@
 import copy
 import threading
 import customtkinter as ctk
+from ui_controls import OptionMenu
 
 
 def build_playlist_page(app):
@@ -11,7 +12,7 @@ def build_playlist_page(app):
     frame = ctk.CTkFrame(app.content_frame, fg_color='transparent')
     frame.grid(row=0, column=0, sticky='nsew', padx=18, pady=14)
     frame.grid_columnconfigure(0, weight=1)
-    frame.grid_rowconfigure(4, weight=1)
+    frame.grid_rowconfigure(6, weight=1)
     app.section_title(frame, 'قائمة التشغيل', 'Playlist', size=24).grid(row=0, column=0, sticky='w', pady=12)
     url = ctk.StringVar()
     entry = ctk.CTkEntry(frame, textvariable=url, height=42, fg_color=app.c['panel2'], border_color=app.c['edge'], text_color=app.c['text'])
@@ -21,8 +22,33 @@ def build_playlist_page(app):
     status = ctk.CTkLabel(frame, text=app.t('أدخل رابط قائمة تشغيل ثم اختر المقاطع.', 'Load a playlist link, then select videos.'), anchor='w')
     status.grid(row=3, column=0, sticky='ew', pady=8)
     rows = ctk.CTkScrollableFrame(frame, fg_color=app.c['panel'])
-    rows.grid(row=4, column=0, sticky='nsew')
+    rows.grid(row=6, column=0, sticky='nsew')
     rows.grid_columnconfigure(0, weight=1)
+    from playlist_options import QUALITIES,playlist_settings
+    saved=getattr(app,'_playlist_preferences',dict(quality='best',container='MP4',subtitles=False,source='auto',target='en',mode='separate'))
+    controls=ctk.CTkFrame(frame,fg_color='transparent');controls.grid(row=4,column=0,sticky='ew',pady=8)
+    preference={key:ctk.BooleanVar(value=value) if key=='subtitles' else ctk.StringVar(value=value) for key,value in saved.items()}
+    quality_labels={'best':app.t('أفضل جودة متاحة','Best Available'),'2160':'4K','1080':'1080p','720':'720p','480':'480p'}
+    selections=[('quality',quality_labels,('جودة الفيديو','Video quality')),('container',{'MP4':'MP4','MKV':'MKV'},('الصيغة','Container')),
+        ('source',{key:app._label_for_lang(key) for key in ('auto','ar','en','tr','ko')},('لغة المصدر','Source language')),
+        ('target',{key:app._label_for_lang(key,False) for key in ('ar','en','tr','ko')},('لغة الترجمة','Subtitle language')),
+        ('mode',{'separate':app.t('ملف منفصل','Separate SRT'),'embed':app.t('مسار مدمج','Embedded track'),'burn':app.t('حرق داخل الفيديو','Burn into video')},('نوع الترجمة','Subtitle output'))]
+    option_menus={}
+    for column,(key,mapping,title) in enumerate(selections):
+        controls.grid_columnconfigure(column,weight=1)
+        ctk.CTkLabel(controls,text=app.t(*title)).grid(row=0,column=column,sticky='ew',padx=3)
+        shown=ctk.StringVar(value=mapping[preference[key].get()]);reverse={v:k for k,v in mapping.items()}
+        menu=OptionMenu(controls,variable=shown,values=list(mapping.values()),width=125,command=lambda value,var=preference[key],lookup=reverse:var.set(lookup[value]))
+        menu.grid(row=1,column=column,sticky='ew',padx=3);option_menus[key]=menu
+    enabled=ctk.CTkCheckBox(controls,text=app.t('تفعيل الترجمة','Enable subtitles'),variable=preference['subtitles'])
+    enabled.grid(row=2,column=0,columnspan=2,sticky='w',pady=8)
+    hint=ctk.CTkLabel(frame,text=app.t('إن لم تتوفر الدقة المحددة تُستخدم دقة أدنى، ولن تُفرض دقة أعلى.','Unavailable exact resolution falls back to a lower resolution, never a higher one.'),wraplength=850,anchor=app._anchor())
+    hint.grid(row=5,column=0,sticky='ew')
+    def save_preferences(*_):
+        app._playlist_preferences={key:var.get() for key,var in preference.items()}
+        for key in ('source','target','mode'):option_menus[key].configure(state='normal' if preference['subtitles'].get() else 'disabled')
+    for var in preference.values():var.trace_add('write',save_preferences)
+    save_preferences()
     page = [0]
     generation = [0]
     all_var = ctk.BooleanVar(value=True)
@@ -100,21 +126,25 @@ def build_playlist_page(app):
             state['enqueueing'] = False
             status.configure(text=app.t('لا توجد روابط قابلة للتنزيل.', 'No downloadable media links.'))
             return
-        settings, folder = copy.deepcopy(app.settings), app.selected_folder
+        settings=playlist_settings(app.settings,**{key:var.get() for key,var in preference.items()})
+        folder=app.selected_folder
         enqueue.configure(state='disabled')
-        def batch(offset=0):
-            for item in selected[offset:offset+5]:
-                app.queue_manager.add_task(item['url'], settings, title=item['title'],
-                                           selected_folder=folder, video_id=item.get('id', ''), thumbnail=item.get('thumbnail', ''))
-            if offset+5 < len(selected):
-                app._ui_callbacks.put(lambda: batch(offset+5))
-            else:
-                state['enqueueing'] = False
-                if enqueue.winfo_exists():
-                    enqueue.configure(state='normal')
-                state['selected'].clear()
-                app.show_tab('Downloads')
-        batch()
+        def rejected():
+            state['enqueueing']=False
+            if enqueue.winfo_exists():enqueue.configure(state='normal')
+        def accepted():
+            def batch(offset=0):
+                for item in selected[offset:offset+5]:
+                    app.queue_manager.add_task(item['url'],settings,title=item['title'],selected_folder=folder,video_id=item.get('id',''),thumbnail=item.get('thumbnail',''))
+                if offset+5<len(selected):app._ui_callbacks.put(lambda:batch(offset+5))
+                else:
+                    rejected();state['selected'].clear();app.show_tab('Downloads')
+            batch()
+        from confirmation import confirm
+        options={key:var.get() for key,var in preference.items()}
+        ar=f"عدد المقاطع: {len(selected)}\nالجودة: {dict(best='أفضل جودة متاحة').get(options['quality'],QUALITIES[options['quality']])}\nالصيغة: {options['container']}\nالترجمة: {'مفعّلة' if options['subtitles'] else 'متوقفة'}\nاللغة: {options['target']}\nنوع الترجمة: {options['mode']}\nمجلد الحفظ: {folder}"
+        en=f"Videos: {len(selected)}\nQuality: {QUALITIES[options['quality']]}\nContainer: {options['container']}\nSubtitles: {options['subtitles']} / {options['target']} / {options['mode']}\nOutput folder: {folder}"
+        confirm(app,'مراجعة تنزيل قائمة التشغيل','Review playlist download',ar,en,accepted,rejected)
 
     load = app.button(toolbar, app.t('قراءة القائمة', 'Load playlist'), fetch, width=160)
     load.pack(side='left', padx=4)
@@ -128,4 +158,4 @@ def build_playlist_page(app):
     app.ghost_button(toolbar, '◀', lambda: turn(-1), width=36).pack(side='left', padx=4)
     app.ghost_button(toolbar, '▶', lambda: turn(1), width=36).pack(side='left', padx=4)
     app._playlist_accept = accept
-    app._playlist_controls = dict(url=url, load=load, download=enqueue, status=status)
+    app._playlist_controls = dict(url=url, load=load, download=enqueue, status=status, preferences=preference, menus=option_menus, subtitles=enabled)

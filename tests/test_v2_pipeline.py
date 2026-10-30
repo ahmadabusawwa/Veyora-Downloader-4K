@@ -30,7 +30,8 @@ def test_diagnostic_redaction():
     text=redact('Failed https://user:secret@example.com/video?token=abc password=private')
     assert all(value not in text for value in ('secret','abc','private'))
 
-def test_completed_filter_preserves_failed_jobs():
+def test_completed_filter_preserves_failed_jobs(monkeypatch,tmp_path):
+    monkeypatch.setenv("VEYORA_CONFIG_DIR",str(tmp_path))
     import main
     manager=main.DownloadQueueManager(lambda:None,1)
     manager._process_queue=lambda:None

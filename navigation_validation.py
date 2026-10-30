@@ -119,6 +119,7 @@ def run_navigation_review(media, cancel_media, report_directory):
                     raise RuntimeError('Actual playlist did not return two distinct media entries')
                 report['playlist_entries'] = entries
                 app._playlist_controls['download'].invoke()
+                app._confirm_controls['yes'].invoke()
                 state['phase'] = 'playlist_downloading'
             elif state['phase'] == 'playlist_downloading':
                 tasks = app.queue_manager.get_tasks_by_status()

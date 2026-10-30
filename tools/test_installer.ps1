@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Setup)
 $ErrorActionPreference='Stop'
 if ($env:CI -ne 'true') { throw 'Run only on an isolated disposable Windows CI worker.' }
-$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{CB5D7202-462E-4BDF-A6BD-92449F02E003}_is1'
+$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7AA3F132-88B0-4ED0-B8D0-203031FA0011}_is1'
 if (Test-Path $existing) { throw 'Existing Veyora installation detected; refusing to alter it.' }
 $root=Join-Path $env:RUNNER_TEMP ('veyora-install-test-'+[guid]::NewGuid())
 $install=Join-Path $root 'application'
@@ -17,10 +17,10 @@ if (-not $env:VEYORA_TEST_MODELS -or -not (Test-Path -LiteralPath $env:VEYORA_TE
 }
 Copy-Item -Path (Join-Path $env:VEYORA_TEST_MODELS '*') -Destination (Join-Path $data 'models') -Recurse -Force
 $env:HF_HUB_OFFLINE='1'
-$legacy='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{9A49F650-703B-4B27-A053-964BE220E4AA}_is1'
+$legacy='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{CB5D7202-462E-4BDF-A6BD-92449F02E003}_is1'
 if (Test-Path $legacy) { throw 'Unexpected pre-existing legacy app on the disposable worker' }
 $oldInstall=Join-Path $root 'previous-application'
-$oldSetup=Join-Path $PSScriptRoot '..\backups\Veyora-Pro-Setup-2.0.2-previous.exe'
+$oldSetup=Join-Path $PSScriptRoot '..\backups\Veyora-Pro-Setup-2.0.3-previous.exe'
 $p=Start-Process -FilePath (Resolve-Path $oldSetup) -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$oldInstall`"") -PassThru -Wait
 if ($p.ExitCode -ne 0) { throw 'Previous version backup installation failed' }
 $oldHash=Get-FileHash "$oldInstall\Veyora-Pro.exe"

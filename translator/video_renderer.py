@@ -187,12 +187,21 @@ def burn_subtitles(video_path, srt_path, output_video_path, checkpoint=lambda: N
             Path(output_video_path).resolve()], checkpoint, cwd=temp, duration=media_duration(video_path), progress=progress)
 
 
-def preview_subtitles(video_path, output_image, style=None, checkpoint=lambda: None):
-    """Render an actual input frame using the export's libass style."""
+def preview_subtitles(video_path, output_image, style=None, checkpoint=lambda: None, subtitle_file=None):
+    """The same libass renderer for live preview and export, with real/sample text."""
     from .subtitle_style import make_ass
     with tempfile.TemporaryDirectory(prefix='veyora-preview-') as folder:
         folder = Path(folder)
-        (folder/'sample.srt').write_text('1\n00:00:00,000 --> 00:00:10,000\nمعاينة الترجمة العربية — Subtitle preview\n', encoding='utf8')
-        video = next(s for s in get_ffprobe_info(video_path)['streams'] if s.get('codec_type') == 'video')
-        make_ass(folder/'sample.srt', folder/'captions.ass', video['width'], video['height'], style)
-        run_ffmpeg(['-i', Path(video_path).resolve(), '-vf', 'ass=captions.ass', '-frames:v', '1', Path(output_image).resolve()], checkpoint, cwd=folder)
+        text='معاينة الترجمة العربية — Subtitle preview'
+        if subtitle_file and Path(subtitle_file).is_file():
+            from .subtitle_generator import parse_srt
+            text=parse_srt(subtitle_file)[0].text
+        (folder/'sample.srt').write_text('1\n00:00:00,000 --> 00:00:10,000\n'+text+'\n', encoding='utf8')
+        if video_path:
+            video=next(s for s in get_ffprobe_info(video_path)['streams'] if s.get('codec_type')=='video')
+            inputs=['-i',Path(video_path).resolve()]
+        else:
+            video=dict(width=1280,height=720)
+            inputs=['-f','lavfi','-i','color=c=0x101b27:s=1280x720:r=1:d=1']
+        make_ass(folder/'sample.srt',folder/'captions.ass',video['width'],video['height'],style)
+        run_ffmpeg([*inputs,'-vf','ass=captions.ass,scale=min(960\\,iw):-2','-frames:v','1',Path(output_image).resolve()],checkpoint,cwd=folder)

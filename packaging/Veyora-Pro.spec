@@ -11,7 +11,7 @@ datas=[(str(root/'logo.png'),'.'),(str(root/'logo.ico'),'.'),(str(notice),'licen
 if (root/'updater'/'trusted_keys.json').is_file():
  datas.append((str(root/'updater'/'trusted_keys.json'),'updater'))
 binaries=[(str(ffmpeg/(x+'.exe')),'.') for x in ('ffmpeg','ffprobe')]
-hidden=['desktop_ui','ui_icons','download_sites','performance','privacy','runtime_support','review_validation','navigation_validation','local_tasks','page_controller','playlist_page','history_page','recovery_store','session_state','thumbnail_cache','media_options_ui','media_conversion','media_validation']+collect_submodules('yt_dlp')+collect_submodules('translator')+collect_submodules('updater')
+hidden=['desktop_ui','ui_icons','download_sites','performance','privacy','runtime_support','review_validation','navigation_validation','local_tasks','page_controller','playlist_page','history_page','recovery_store','session_state','thumbnail_cache','media_options_ui','media_conversion','media_validation','conversion_page','confirmation','ui_text','ui_controls','output_actions','playlist_options','final_validation']+collect_submodules('yt_dlp')+collect_submodules('translator')+collect_submodules('updater')
 for package in ('customtkinter','faster_whisper','ctranslate2','onnxruntime','av','tokenizers','sentencepiece','cryptography'):
  d,b,h=collect_all(package);datas+=d;binaries+=b;hidden+=h
 a=Analysis([str(root/'main.py')],pathex=[str(root)],binaries=binaries,datas=datas,hiddenimports=hidden)

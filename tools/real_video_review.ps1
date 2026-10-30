@@ -53,6 +53,33 @@ foreach ($stage in @('first','restart')) {
  if ($p.ExitCode -ne 0 -or -not $feature.ok) { throw 'Actual GUI link/convert/style/thumbnail review failed' }
 }
 
+$finalDirectory=Join-Path $OutputDirectory 'final-ui'
+$p=Start-Process -FilePath $Application -ArgumentList @('--review-final-ui',"`"$video`"","`"$finalDirectory`"") -PassThru
+if (-not $p.WaitForExit(240000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Final installed UI test timeout' }
+$final=Get-Content -Raw -LiteralPath (Join-Path $finalDirectory 'final-ui-results.json') | ConvertFrom-Json
+Write-Host ('FINAL_UI_REPORT: '+($final | ConvertTo-Json -Depth 10 -Compress))
+if ($p.ExitCode -ne 0 -or -not $final.ok) { throw 'Final installed UI test failed' }
+
+# Keep close-test queues outside the main verification profile and artifact directory.
+function Test-ActualClose([string]$kind) {
+ $savedConfig=$env:VEYORA_CONFIG_DIR
+ $isolated=Join-Path $env:RUNNER_TEMP ('veyora-close-'+[guid]::NewGuid())
+ New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+ '{"auto_update_check":false,"ui_language":"ar","speech_model":"base"}' | Set-Content -Encoding utf8NoBOM (Join-Path $isolated 'settings.json')
+ if ($kind -eq 'translation') { New-Item -ItemType Junction -Path (Join-Path $isolated 'models') -Target (Join-Path $ConfigDirectory 'models') | Out-Null }
+ try {
+  $env:VEYORA_CONFIG_DIR=$isolated
+  $closeDirectory=Join-Path $OutputDirectory ('close-'+$kind)
+  $p=Start-Process -FilePath $Application -ArgumentList @('--review-close',"`"$video`"","`"$closeDirectory`"",$kind) -PassThru
+  if (-not $p.WaitForExit(75000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw ('Close review timeout: '+$kind) }
+  $close=Get-Content -Raw -LiteralPath (Join-Path $closeDirectory 'close-results.json') | ConvertFrom-Json
+  Write-Host ('CLOSE_REPORT: '+($close | ConvertTo-Json -Depth 8 -Compress))
+  if ($p.ExitCode -ne 0 -or -not $close.ok) { throw ('Actual close review failed: '+$kind) }
+ } finally { $env:VEYORA_CONFIG_DIR=$savedConfig }
+}
+Test-ActualClose 'idle'
+Test-ActualClose 'download'
+
 $recoveryDirectory=Join-Path $OutputDirectory 'recovery'
 $p=Start-Process -FilePath $Application -ArgumentList @('--review-recovery',"`"$video`"","`"$recoveryDirectory`"") -PassThru
 if (-not $p.WaitForExit(180000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Actual crash recovery timeout' }
@@ -119,6 +146,7 @@ try {
   $quality=Get-Content -Raw -LiteralPath (Join-Path $qualityDirectory 'media-quality-results.json') | ConvertFrom-Json
   Write-Host ('QUALITY_REPORT: '+($quality | ConvertTo-Json -Depth 10 -Compress))
   if ($p.ExitCode -ne 0 -or -not $quality.ok) { throw 'Actual installed media quality review failed' }
+  Test-ActualClose 'translation'
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }
 } finally {

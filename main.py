@@ -35,6 +35,8 @@ for target in LANGUAGES:
     key = 'detect-' + target
     TRANSLATION_DIRECTIONS[key] = ('auto', target)
     SUBTITLE_CHOICES['Detect speech -> ' + LANGUAGES[target]] = key
+for _code in LANGUAGES:
+    TRANSLATION_DIRECTIONS['transcribe-'+_code]=(_code,_code)
 AUTO_TRANSLATION_MODES = tuple(TRANSLATION_DIRECTIONS)
 
 
@@ -359,6 +361,12 @@ class DownloadEngine:
             return 'bestaudio/best'
 
         quality = settings.get('quality', 'Best Available (4K/HD)')
+        if quality=='Best Available':
+            return 'bestvideo+bestaudio/best'
+        if settings.get('strict_quality'):
+            height=next((n for n in ('2160','1080','720','480') if n in quality),None)
+            if height:
+                return f'bestvideo[height<=?{height}]+bestaudio/best[height<=?{height}]'
         if '4K' in quality or '2160' in quality or 'Best' in quality:
             return 'bestvideo[height<=2160]+bestaudio/best[height<=2160]/best'
         elif '1440' in quality:
@@ -448,6 +456,8 @@ class DownloadEngine:
             'subtitlesformat': 'srt/vtt/best',
         })
         ydl_opts.setdefault('postprocessors', [])
+        if settings.get('force_container') and not extract_audio:
+            ydl_opts['postprocessors'].append({'key':'FFmpegVideoRemuxer','preferedformat':settings.get('format','MP4').lower()})
         if subtitles and not auto_translate:
             ydl_opts['postprocessors'].append({'key': 'FFmpegSubtitlesConvertor', 'format': 'srt'})
             if settings.get('subtitle_mode') in ('embed', 'both'):
@@ -524,15 +534,17 @@ class DownloadEngine:
                     mode=settings.get('subtitle_mode', 'separate'), checkpoint=checkpoint,
                     source_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][0],
                     target_lang=TRANSLATION_DIRECTIONS[settings['sub_lang']][1],
+                    output_container=settings.get('format','MKV').lower(),
                     save_original=settings.get('save_original_subtitles', False),
                     subtitle_style=settings.get('subtitle_style'),
-                    enhance_speech=settings.get('enhance_speech',False),
-                    contextual_translation=settings.get('contextual_translation',False),
+                    enhance_speech=settings.get('speech_policy','on' if settings.get('enhance_speech') else 'auto'),
+                    contextual_translation={'auto':None,'on':True,'off':False}.get(settings.get('context_policy','auto')),
                     progress=lambda stage, fraction=None: progress_callback(task_item['id'],
                         {'status': 'translation', 'stage': stage, 'fraction': fraction}))
                 task_item['subtitle_file'] = outputs['subtitle']
                 if outputs.get('video'):
                     task_item['downloaded_file'] = outputs['video']
+                    task_item['translated_video'] = True
             elif (settings.get('download_subs') and not settings.get('extract_audio')
                     and settings.get('subtitle_mode') == 'burn'):
                 from translator.video_renderer import burn_subtitles
@@ -556,11 +568,18 @@ class DownloadEngine:
                 burn_subtitles(final_path, subtitle, output, checkpoint, progress=native_burn_progress, **({'style':settings['subtitle_style']} if settings.get('subtitle_style') else {}))
                 task_item['downloaded_file'] = str(output)
             checkpoint()
+            progress_callback(task_item['id'],{'status':'finished','stage':'Checking final media file'})
+            from translator.video_renderer import get_ffprobe_info
+            final=Path(task_item['downloaded_file'])
+            if not final.is_file() or final.stat().st_size<=0 or not get_ffprobe_info(final).get('streams'):
+                raise RuntimeError('Final media output validation failed')
+            checkpoint()
             completion_callback(task_item['id'], True, "Download completed successfully.")
         except Exception as exc:
-            from runtime_support import friendly_error
+            from runtime_support import friendly_error,log_failure
+            if not cancel_event.is_set():log_failure(exc,'download task '+task_item['id'])
             completion_callback(task_item['id'], False,
-                friendly_error(exc, settings.get('ui_language') == 'ar', cancel_event.is_set()))
+                friendly_error(exc, settings.get('ui_language') == 'ar', cancel_event.is_set(),record=False))
 
 
 def cleanup_leftover_files(directory, title_pattern):
@@ -589,12 +608,33 @@ class DownloadQueueManager:
         from recovery_store import RecoveryStore, recovery_path
         self.recovery = RecoveryStore(recovery_path(CONFIG_DIR))
         self.recoverable = self.recovery.load()
+        # Terminal outputs must be visible after restart even when no resume prompt is needed.
+        for saved in list(self.recoverable):
+            if saved.get('status') in self.TERMINAL and saved.get('id'):
+                tid=saved['id'];self.tasks[tid]=saved;self.task_order.append(tid)
+                self.pause_events[tid],self.cancel_events[tid]=threading.Event(),threading.Event()
+        self.recoverable=[t for t in self.recoverable if t.get('id') not in self.tasks]
 
     def _journal(self):
         if self.closed:
             return self.recovery.generation
         with self.lock:
             return self.recovery.submit([t for t in self.recoverable if t.get('id') not in self.tasks] + [self.tasks[tid] for tid in self.task_order])
+
+    def register_local_result(self,task,settings):
+        if task.status!='completed' or not task.result:return
+        with self.lock:
+            if task.id in self.tasks:return
+            result=task.result;path=result.get('video') or result.get('subtitle')
+            if not path:return
+            self.tasks[task.id]=dict(id=task.id,url='',settings=copy.deepcopy(settings),title=Path(task.path).name,
+                progress=1.0,speed='',eta='',status='Completed',error=None,downloaded_file=path,
+                subtitle_file=result.get('subtitle'),translated_video=bool(result.get('video')),
+                selected_folder=str(Path(path).parent),platform='Local media',show_folder_available=True,filesize=0,
+                local_result=True)
+            self.task_order.append(task.id)
+            self.pause_events[task.id],self.cancel_events[task.id]=threading.Event(),threading.Event()
+        self._journal();self._notify_ui()
 
     def restore_previous(self):
         """Explicit consent only; retain IDs, output template and partial files."""
@@ -694,6 +734,7 @@ class DownloadQueueManager:
                     eta = data.get('eta')
                     t['eta'] = f"{int(eta)//60}:{int(eta)%60:02d}" if eta is not None else 'Calculating...'
                 elif state in ('finished', 'translation'):
+                    if data.get('stage'):t['stage']=data['stage']
                     t['status'] = 'Translating' if state == 'translation' else 'Processing / Muxing'
                     if state == 'translation':
                         t['stage'] = data.get('stage', '')
@@ -710,6 +751,8 @@ class DownloadQueueManager:
                     t['status'] = 'Cancelled'
                 elif success:
                     f = Path(t['downloaded_file'])
+                    if not f.is_file() or f.stat().st_size<=0:
+                        raise RuntimeError('Final download output is missing or empty')
                     size = f.stat().st_size
                     t.update(status='Completed', progress=1.0, filesize=size, show_folder_available=True)
                     history = dict(title=t['title'], url=t['url'],
@@ -872,7 +915,8 @@ class VeyoraApp(ctk.CTk):
             except Exception as exc:
                 from runtime_support import friendly_error
                 messagebox.showerror('Veyora', friendly_error(exc, self.settings.get('ui_language') == 'ar'))
-        self._worker_poll_id = self.after(100, self._poll_workers)
+        if not getattr(self,"_closing",False):
+            self._worker_poll_id = self.after(100, self._poll_workers)
 
     def _on_close(self):
         self._closing = True
@@ -1933,6 +1977,12 @@ def packaged_self_test(report_path):
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    if len(sys.argv)==5 and sys.argv[1]=='--review-close':
+        from final_validation import run_close_review
+        sys.exit(run_close_review(*sys.argv[2:]))
+    if len(sys.argv)==4 and sys.argv[1]=='--review-final-ui':
+        from final_validation import run_final_review
+        sys.exit(run_final_review(*sys.argv[2:]))
     if len(sys.argv) == 5 and sys.argv[1] == '--review-features':
         from media_validation import gui_features_review
         sys.exit(gui_features_review(*sys.argv[2:]))

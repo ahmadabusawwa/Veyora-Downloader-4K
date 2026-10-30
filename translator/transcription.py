@@ -98,7 +98,7 @@ class Transcriber:
             checkpoint()
             progress(f'Recognizing {self.language} speech on CPU', 0)
             target_lang = None if self.language == 'auto' else self.language
-            segments, info = _model.transcribe(audio_path, language=target_lang, task='transcribe', beam_size=5, vad_filter=True)
+            segments, info = _model.transcribe(audio_path, language=target_lang, task='transcribe', beam_size=5, vad_filter=True, **({'vad_parameters':self.vad_parameters} if getattr(self,'vad_parameters',None) else {}))
             result = []
             for segment in segments:
                 checkpoint()
@@ -118,13 +118,14 @@ class Transcriber:
                         task='transcribe',
                         beam_size=5,
                         vad_filter=False,
-                        no_speech_threshold=1.0,
-                        log_prob_threshold=None,
+                        no_speech_threshold=.6,
+                        log_prob_threshold=-1.0,
                         condition_on_previous_text=False,
                     )
                     for segment in retry_segments:
                         checkpoint()
-                        if getattr(segment, 'text', '').strip():
+                        if (getattr(segment,'text','').strip() and getattr(segment,'no_speech_prob',0)<=.6
+                                and getattr(segment,'avg_logprob',0)>=-1.0 and getattr(segment,'compression_ratio',0)<=2.4):
                             segment = _bound_segment(segment, retry_info)
                             if segment is not None:
                                 result.append(segment)

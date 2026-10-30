@@ -40,7 +40,7 @@ def _cache_key(media, checkpoint, source_lang='en'):
         preferred = 'base'
     if preferred not in ('base','small','medium'):
         preferred = 'base'
-    prefix = ('veyora-transcript-v4-' + preferred + '-' + source_lang + '\0').encode('ascii')
+    prefix = ('veyora-transcript-v5-guarded-' + preferred + '-' + source_lang + '\0').encode('ascii')
     digest = hashlib.sha256(prefix)
     with media.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
@@ -101,9 +101,13 @@ class TranslationPipeline:
         self.video_path = Path(video_path).resolve()
         self.output_dir = Path(output_dir).resolve()
 
-    def run(self, mode='separate', checkpoint=lambda: None, progress=lambda stage, fraction=None: None, source_lang='en', target_lang='ar', save_original=True, subtitle_style=None, enhance_speech=False, contextual_translation=False):
-        self.enhance_speech = bool(enhance_speech)
-        self.contextual_translation = bool(contextual_translation)
+    def run(self, mode='separate', checkpoint=lambda: None, progress=lambda stage, fraction=None: None, source_lang='en', target_lang='ar', save_original=True, subtitle_style=None, enhance_speech=None, contextual_translation=None, output_container="mkv"):
+        if output_container not in ('mp4','mkv'):
+            raise ValueError('Unsupported output container')
+        self.output_container = output_container
+        from .recognition_policy import should_enhance
+        self.enhance_speech = should_enhance(enhance_speech)
+        self.contextual_translation = contextual_translation
         self.subtitle_style = subtitle_style
         with processing_slot(checkpoint, progress):
             try:
@@ -121,7 +125,7 @@ class TranslationPipeline:
         outputs['subtitle'] = str(destination)
         if mode in ('embed', 'both', 'burn'):
             progress(f'Burning {target_name} subtitles' if mode == 'burn' else f'Embedding {target_name} subtitle track', None)
-            rendered = temp / ('rendered.mp4' if mode == 'burn' else 'rendered.mkv')
+            rendered = temp / ('rendered.mp4' if mode == 'burn' else 'rendered.'+getattr(self,'output_container','mkv'))
             renderer = burn_subtitles if mode == 'burn' else embed_subtitles
             def render_progress(fraction, eta, speed):
                 action = 'Burning' if mode == 'burn' else 'Embedding'
@@ -211,9 +215,10 @@ class TranslationPipeline:
                 translator = TranslatorProvider(source_lang, target_lang)
                 translator.prepare(checkpoint, progress)
                 translated = []
-                if getattr(self,'contextual_translation',False):
+                if getattr(self,'contextual_translation',None) is not False:
                     from .context_segments import sentence_groups
-                    segments = list(sentence_groups(segments))
+                    from .recognition_policy import automatic_context
+                    segments = list(sentence_groups(segments) if self.contextual_translation is True or self.contextual_translation=='on' else automatic_context(segments))
                 for index, segment in enumerate(segments):
                     checkpoint()
                     progress(f'Translating locally: subtitle {index + 1}/{len(segments)}', index / len(segments))
@@ -248,9 +253,10 @@ class TranslationPipeline:
         translator = TranslatorProvider(source_lang, target_lang)
         translator.prepare(checkpoint, progress)
         result = []
-        if getattr(self,'contextual_translation',False):
+        if getattr(self,'contextual_translation',None) is not False:
             from .context_segments import sentence_groups
-            segments = list(sentence_groups(segments))
+            from .recognition_policy import automatic_context
+            segments = list(sentence_groups(segments) if self.contextual_translation is True or self.contextual_translation=='on' else automatic_context(segments))
         for i, segment in enumerate(segments):
             checkpoint()
             result.append(SimpleNamespace(start=segment.start, end=segment.end, text=translator.translate(segment.text, checkpoint=checkpoint)))

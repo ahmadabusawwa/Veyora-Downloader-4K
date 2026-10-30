@@ -18,6 +18,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
+from ui_controls import OptionMenu,CodedOptionMenu
 from PIL import Image, ImageDraw
 
 from main import (
@@ -85,6 +86,7 @@ LIGHT = dict(
 
 STATUS_LABELS = {
     "Queued": ("في الانتظار", "Queued"),
+    "Cancelling": ("جارٍ الإلغاء", "Cancelling"),
     "Downloading": ("جاري التحميل", "Downloading"),
     "Paused": ("متوقف مؤقتًا", "Paused"),
     "Processing / Muxing": ("معالجة ودمج", "Processing / muxing"),
@@ -298,10 +300,11 @@ class DesktopApp(VeyoraApp):
         self._syncing_controls = False
         super().__init__()
         self.title(f"Veyora Pro {APP_VERSION} — Downloader & Translator")
-        self.geometry("1536x980")
-        self.minsize(1080, 760)
+        self.geometry(f"{min(1536,max(1000,self.winfo_screenwidth()-60))}x{min(980,max(600,self.winfo_screenheight()-100))}")
+        self.minsize(1000,600)
         self.configure(fg_color=self.c["bg"])
         self._start_status_clock()
+        self.protocol("WM_DELETE_WINDOW",self.request_close)
         if any(t.get('status') not in self.queue_manager.TERMINAL for t in self.queue_manager.recoverable):
             self.after(500, self._offer_download_recovery)
 
@@ -947,6 +950,9 @@ class DesktopApp(VeyoraApp):
         return task.error if task else None
 
     def _refresh_local_tasks(self, force=False):
+        task=self.local_tasks.snapshot('Translation')
+        if task and task.status=='completed':
+            self.queue_manager.register_local_result(task,self.settings)
         view = self._local_views.get(getattr(self, 'active_tab', ''))
         if view and self.state() != 'iconic':
             view['render'](force)
@@ -1365,7 +1371,7 @@ class DesktopApp(VeyoraApp):
         saved_q = self.settings.get("quality", "Best Available (4K/HD)")
         self.quality_var = ctk.StringVar(value=saved_q)
         self.quality_display_var = ctk.StringVar(value=self._quality_to_display(saved_q))
-        self.quality_menu = ctk.CTkOptionMenu(
+        self.quality_menu = OptionMenu(
             card,
             values=self._quality_display_values(),
             variable=self.quality_display_var,
@@ -1393,7 +1399,7 @@ class DesktopApp(VeyoraApp):
         saved_fmt = self.settings.get("format", "MP4")
         self.format_var = ctk.StringVar(value=saved_fmt)
         self.format_display_var = ctk.StringVar(value=self._format_to_display(saved_fmt))
-        self.format_menu = ctk.CTkOptionMenu(
+        self.format_menu = OptionMenu(
             card,
             values=self._format_display_values(),
             variable=self.format_display_var,
@@ -1528,7 +1534,7 @@ class DesktopApp(VeyoraApp):
             font=("Segoe UI", 12),
             anchor="w",
         ).grid(row=2, column=0, padx=(14, 8), pady=5, sticky="w")
-        self.source_menu = ctk.CTkOptionMenu(
+        self.source_menu = OptionMenu(
             card,
             values=src_labels,
             variable=self.source_var,
@@ -1553,7 +1559,7 @@ class DesktopApp(VeyoraApp):
             font=("Segoe UI", 12),
             anchor="w",
         ).grid(row=3, column=0, padx=(14, 8), pady=5, sticky="w")
-        self.target_menu = ctk.CTkOptionMenu(
+        self.target_menu = OptionMenu(
             card,
             values=tgt_labels,
             variable=self.target_var,
@@ -1581,7 +1587,7 @@ class DesktopApp(VeyoraApp):
         saved_mode = self.settings.get("subtitle_mode", "separate")
         self.dashboard_subtitle_mode = ctk.StringVar(value=saved_mode)
         self.subtitle_mode_display_var = ctk.StringVar(value=self._subtitle_mode_to_display(saved_mode))
-        self.subtitle_mode_menu = ctk.CTkOptionMenu(
+        self.subtitle_mode_menu = OptionMenu(
             card,
             values=self._subtitle_mode_display_values(),
             variable=self.subtitle_mode_display_var,
@@ -2030,7 +2036,7 @@ class DesktopApp(VeyoraApp):
         self.queue_summary_label.grid(row=0, column=2, sticky="e", padx=12)
 
     def _menu(self, parent, row, values, variable):
-        menu = ctk.CTkOptionMenu(
+        menu = OptionMenu(
             parent,
             values=values,
             variable=variable,
@@ -2416,7 +2422,9 @@ class DesktopApp(VeyoraApp):
             "cancel": ("×", lambda: self.queue_manager.cancel_task(tid)),
             "retry": ("↻", lambda: self.queue_manager.retry_task(tid)),
             "remove": ("×", lambda: self.queue_manager.remove_task(tid)),
-            "show": ("▱", lambda: self._show_task_file(tid)),
+            "show": (self.t('فتح الموقع','Open folder'), lambda: self._show_task_file(tid)),
+            "play": (self.t('تشغيل الملف النهائي','Play final output'), lambda: self._open_download_output(tid)),
+            "subtitle": (self.t('فتح ملف الترجمة','Open SRT'), lambda: self._open_download_output(tid,'subtitle')),
         }
         self.card_widgets[tid] = card
         self._card_title_labels[tid] = title
@@ -2429,7 +2437,7 @@ class DesktopApp(VeyoraApp):
             button = ctk.CTkButton(
                 actions,
                 text=label,
-                width=32,
+                width=145 if key in ("play","show","subtitle","errorlog") else 32,
                 height=28,
                 fg_color=colors["panel2"],
                 hover_color=colors["blue_soft"],
@@ -2439,6 +2447,16 @@ class DesktopApp(VeyoraApp):
                 font=("Segoe UI", 11, "bold"),
             )
             self._card_buttons[tid][key] = button
+
+    def _open_error_log(self):
+        from output_actions import launch_output
+        launch_output(self,CONFIG_DIR/'logs'/'errors.log')
+
+    def _open_download_output(self,tid,action='video'):
+        from output_actions import final_output,launch_output
+        task=next((task for task in self.queue_manager.get_tasks_by_status() if task['id']==tid),None)
+        path=final_output(task,action) if task else None
+        if path:launch_output(self,path)
 
     def _update_download_card(self, task):
         tid = task["id"]
@@ -2477,13 +2495,14 @@ class DesktopApp(VeyoraApp):
             if task.get("speed"):
                 parts.append(str(task["speed"]))
             if task.get("eta"):
-                parts.append(f"{'باقي:' if self.is_arabic else 'ETA:'} {task['eta']}")
+                parts.append(f"{'باقي:' if self.is_arabic else 'ETA:'} {self.t('جارٍ الحساب…','Calculating…') if task['eta']=='Calculating...' else task['eta']}")
         elif status == "Completed":
             if size_mb:
                 parts.append(f"{size_mb:.1f} MB")
             parts.append("اكتمل بنجاح" if self.is_arabic else "Completed successfully")
-        elif status == "Translating" and task.get("stage"):
-            parts.append(str(task["stage"]))
+        elif status in ("Translating","Processing / Muxing") and task.get("stage"):
+            from ui_text import stage_text
+            parts.append(stage_text(str(task["stage"]),self.is_arabic,shaped=False))
         elif task.get("error"):
             parts = [str(task["error"])[:180]]
         else:
@@ -2491,7 +2510,8 @@ class DesktopApp(VeyoraApp):
         text = "  •  ".join(parts)
 
         if title != old.get("title"):
-            self._card_title_labels[tid].configure(text=title)
+            shown_title=self.t("جارٍ قراءة بيانات الفيديو…","Resolving…") if title in ("Resolving...","Resolving…") else title
+            self._card_title_labels[tid].configure(text=shown_title)
         if text != old.get("text"):
             # Shape Arabic exactly once, after assembling the full mixed-language line.
             self._card_info_labels[tid].configure(text=fix_arabic_text(text) if self.is_arabic else text)
@@ -2515,7 +2535,7 @@ class DesktopApp(VeyoraApp):
             icon_char = "✓" if status == "Completed" else ("▲" if status in ("Failed", "Cancelled") else "↓")
             status_icon.configure(text=icon_char, text_color=bar_color)
 
-        if status != old.get("status"):
+        if status != old.get("status") or bool(task.get("subtitle_file")) != old.get("subtitle_available"):
             buttons = self._card_buttons[tid]
             for button in buttons.values():
                 button.pack_forget()
@@ -2526,13 +2546,13 @@ class DesktopApp(VeyoraApp):
                 "Processing / Muxing": ("cancel",),
                 "Merging & Processing (FFmpeg)...": ("cancel",),
                 "Translating": ("cancel",),
-                "Failed": ("retry", "remove"),
+                "Failed": ("retry", "remove", "errorlog"),
                 "Cancelled": ("retry", "remove"),
-                "Completed": ("show", "remove"),
+                "Completed": ("play", "show", "subtitle") if task.get("subtitle_file") else ("play","show"),
             }.get(status, ())
             for action in actions:
-                buttons[action].pack(side="left", padx=2)
-        self._card_snapshots[tid] = dict(title=title, text=text, progress=progress, status=status)
+                buttons[action].pack(side="top" if status=="Completed" else "left", padx=2,pady=1)
+        self._card_snapshots[tid] = dict(title=title, text=text, progress=progress, status=status,subtitle_available=bool(task.get("subtitle_file")))
 
     def set_filter(self, filter_value):
         self.active_filter = filter_value
@@ -2715,7 +2735,7 @@ class DesktopApp(VeyoraApp):
 
         label("التنزيلات المتزامنة", "Concurrent downloads")
         self.concurrent_var = ctk.StringVar(value=str(self.settings.get("max_concurrent", 3)))
-        ctk.CTkOptionMenu(
+        OptionMenu(
             card,
             values=["1", "2", "3", "4", "5"],
             variable=self.concurrent_var,
@@ -2764,22 +2784,22 @@ class DesktopApp(VeyoraApp):
         heading("الترجمة بين اللغات الأربع (ar / en / tr / ko)", "4-Language Translation (ar / en / tr / ko)")
         label("اتجاه الترجمة", "Subtitle direction")
         self.translation_source_var = ctk.StringVar(value=self.settings.get("sub_lang", "auto-ar"))
-        ctk.CTkOptionMenu(
-            card,
-            values=[key for key in TRANSLATION_DIRECTIONS if key != "auto"] + list(LANGUAGES),
-            variable=self.translation_source_var,
-            fg_color=self.c["panel2"],
-            button_color=self.c["blue_soft"],
-            text_color=self.c["text"],
-            width=220,
-        ).grid(row=row, column=1, padx=18, pady=7, sticky="w")
-        row += 1
+        direction_labels={}
+        for code,(source,target) in TRANSLATION_DIRECTIONS.items():
+            if code=='auto':continue
+            source_name='اكتشاف تلقائي' if source=='auto' else LANGUAGE_NAMES_AR[source]
+            if self.is_arabic:label_text=self.t(source_name+' ← '+LANGUAGE_NAMES_AR[target],'')
+            else:label_text=('Detect' if source=='auto' else LANGUAGES[source])+' → '+LANGUAGES[target]
+            direction_labels[code]=label_text
+        for code,name in LANGUAGES.items():direction_labels[code]=self._label_for_lang(code,False)
+        CodedOptionMenu(card,variable=self.translation_source_var,labels=direction_labels,width=240,fg_color=self.c['panel2'],button_color=self.c['blue_soft'],text_color=self.c['text']).grid(row=row,column=1,padx=18,pady=7,sticky='w')
+        row+=1
 
         label("طريقة حفظ الترجمة", "Subtitle output")
         self.subtitle_mode_var = ctk.StringVar(value=self.settings.get("subtitle_mode", "separate"))
-        ctk.CTkOptionMenu(
+        CodedOptionMenu(
             card,
-            values=["separate", "embed", "burn", "both"],
+            labels={'separate':self.t('ملف SRT منفصل','Separate SRT'),'embed':self.t('مسار ترجمة مدمج','Embedded track'),'burn':self.t('حرق داخل الفيديو','Burn into video'),'both':self.t('ملف منفصل ومسار مدمج','Separate and embedded')},
             variable=self.subtitle_mode_var,
             fg_color=self.c["panel2"],
             button_color=self.c["blue_soft"],
@@ -2814,9 +2834,9 @@ class DesktopApp(VeyoraApp):
         heading("الأداء والتحديثات الآمنة", "Performance and signed updates")
         label("وضع الأداء", "Performance profile")
         self.performance_var = ctk.StringVar(value=self.settings.get("performance_mode", "balanced"))
-        ctk.CTkOptionMenu(
+        CodedOptionMenu(
             card,
-            values=["economy", "balanced", "high"],
+            labels={'economy':self.t('اقتصادي','Economy'),'balanced':self.t('متوازن','Balanced'),'high':self.t('أداء عالٍ','High performance')},
             variable=self.performance_var,
             fg_color=self.c["panel2"],
             button_color=self.c["blue_soft"],
@@ -2827,7 +2847,7 @@ class DesktopApp(VeyoraApp):
 
         label("نموذج التعرف على الكلام", "Speech model")
         self.speech_var = ctk.StringVar(value=self.settings.get("speech_model", "base"))
-        ctk.CTkOptionMenu(
+        OptionMenu(
             card,
             values=["base", "small", "medium"],
             variable=self.speech_var,
@@ -2911,6 +2931,9 @@ class DesktopApp(VeyoraApp):
     # Local media, advanced options, support
     # ------------------------------------------------------------------
     def build_local_tab(self, convert=False):
+        if convert:
+            from conversion_page import build_conversion_page
+            return build_conversion_page(self)
         frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         frame.grid(row=0, column=0, sticky="nsew", padx=18, pady=14)
         frame.grid_columnconfigure(0, weight=1)
@@ -2990,7 +3013,7 @@ class DesktopApp(VeyoraApp):
                 variable = convert_options[key] = ctk.StringVar(value=form.get(key,default))
                 choices.append((variable,values,115))
         for var, values, width in choices:
-            menu = ctk.CTkOptionMenu(
+            menu = OptionMenu(
                 menus,
                 variable=var,
                 values=values,
@@ -3049,7 +3072,8 @@ class DesktopApp(VeyoraApp):
                 widget.configure(state='disabled' if owns_job else 'normal')
             if not task:
                 return
-            stage = task.stage
+            from ui_text import stage_text
+            stage = stage_text(task.stage,False)
             if task.status == 'failed':
                 stage = friendly_error(RuntimeError(task.error), self.is_arabic, record=False)
             elif task.status == 'cancelled':
@@ -3057,7 +3081,7 @@ class DesktopApp(VeyoraApp):
             minutes, seconds = divmod(int(task.elapsed), 60)
             suffix = self.t(f'  •  الوقت المنقضي {minutes:02}:{seconds:02}', f'  •  Elapsed {minutes:02}:{seconds:02}')
             percentage = f'  •  {task.fraction*100:.1f}%' if task.fraction is not None else ''
-            label.configure(text=fix_arabic_text(stage) + percentage + suffix)
+            label.configure(text=stage_text(task.stage,True) + percentage + suffix if self.is_arabic and task.status not in ("failed","cancelled") else self.t(stage,stage) + percentage + suffix)
             if owns_job and task.fraction is None:
                 if not animated[0]:
                     bar.configure(mode='indeterminate')
@@ -3082,7 +3106,7 @@ class DesktopApp(VeyoraApp):
             values = self.local_tasks.form(kind)
             self.local_tasks.start(kind, media, self.selected_folder, values['source'], values['target'], values['mode'],
                 save_original=self.settings.get('save_original_subtitles', False),
-                options={key:var.get() for key,var in convert_options.items()} if convert else {'subtitle_style': self.settings.get('subtitle_style'), 'enhance_speech': enhance.get(), 'contextual_translation':context.get()})
+                options={key:var.get() for key,var in convert_options.items()} if convert else {'subtitle_style': self.settings.get('subtitle_style'), 'enhance_speech':self.settings.get('speech_policy','on' if self.settings.get('enhance_speech') else 'auto'), 'contextual_translation': {'auto':None,'off':False,'on':True}.get(self.settings.get('context_policy','auto'))})
             render(True)
 
         def cancel():
@@ -3097,16 +3121,9 @@ class DesktopApp(VeyoraApp):
         self._local_task_controls = dict(path=path, source=src, target=dst, mode=mode,
             start=start_button, cancel=cancel_button, status=label, progress=bar)
         if not convert:
-            enhance = ctk.BooleanVar(value=self.settings.get('enhance_speech',False))
-            context = ctk.BooleanVar(value=self.settings.get('contextual_translation',False))
-            def store_speech_options():
-                self.settings['enhance_speech'] = enhance.get()
-                self.settings['contextual_translation'] = context.get()
-                SettingsManager.save(self.settings)
-            ctk.CTkCheckBox(card,text=self.t('تحسين وضوح الكلام (تجريبي، اختياري)','Enhance dialogue (experimental, optional)'),variable=enhance,command=store_speech_options).grid(row=8,column=0,sticky='w',padx=24,pady=6)
-            ctk.CTkCheckBox(card,text=self.t('ترجمة بالسياق: حتى جملتين (اختياري)','Translate with context: up to two sentences (optional)'),variable=context,command=store_speech_options).grid(row=9,column=0,sticky='w',padx=24,pady=6)
             from media_options_ui import subtitle_options
             self.ghost_button(buttons,self.t('مظهر ومعاينة الترجمة','Subtitle style & preview'),lambda:subtitle_options(self,path),width=190).pack(side='left',padx=6)
+            self.ghost_button(buttons,self.t('إعدادات متقدمة','Advanced settings'),self.show_advanced,width=140).pack(side='left',padx=6)
         self._local_views[kind] = dict(render=render, pause=pause)
         render(True)
 
@@ -3148,6 +3165,9 @@ class DesktopApp(VeyoraApp):
         speech = ctk.StringVar(value=self.settings.get("speech_model", "base"))
         subtitle_mode = ctk.StringVar(value=self.settings.get("subtitle_mode", "separate"))
         bitrate = ctk.StringVar(value=self.settings.get("audio_bitrate", "320 kbps"))
+        policies={'auto':self.t('تلقائي محافظ','Conservative auto'),'off':self.t('إيقاف','Off'),'on':self.t('تشغيل يدوي','Manual on')}
+        speech_policy=ctk.StringVar(value=policies[self.settings.get('speech_policy','on' if self.settings.get('enhance_speech') else 'auto')])
+        context_policy=ctk.StringVar(value=policies[self.settings.get('context_policy','auto')])
         auto_update = ctk.BooleanVar(value=self.settings.get("auto_update_check", True))
         prereleases = ctk.BooleanVar(value=self.settings.get("allow_prereleases", False))
 
@@ -3165,7 +3185,7 @@ class DesktopApp(VeyoraApp):
             ctk.CTkLabel(body, text=text, text_color=self.c["text"], anchor="w").grid(
                 row=row, column=0, padx=14, pady=8, sticky="w"
             )
-            ctk.CTkOptionMenu(
+            OptionMenu(
                 body,
                 values=values,
                 variable=variable,
@@ -3196,7 +3216,14 @@ class DesktopApp(VeyoraApp):
             ).grid(row=row, column=0, padx=14, pady=8, sticky="w")
             ctk.CTkCheckBox(body, text="", variable=variable).grid(row=row, column=1, padx=14, pady=8, sticky="e")
 
+        add_menu(9,self.t('تحسين وضوح الكلام','Speech enhancement'),speech_policy,list(policies.values()))
+        add_menu(10,self.t('سياق الترجمة','Translation context'),context_policy,list(policies.values()))
+        ctk.CTkLabel(body,text=self.t('التلقائي لا يفرض فصل الموسيقى غير المثبت فائدته. الوضع اليدوي متاح للمقارنة.','Auto never forces unproven music separation. Manual on is available for comparison.'),wraplength=480).grid(row=11,column=0,columnspan=2,padx=12,pady=10)
+
         def save():
+            reverse={v:k for k,v in policies.items()}
+            self.settings['speech_policy']=reverse[speech_policy.get()]
+            self.settings['context_policy']=reverse[context_policy.get()]
             self.settings["save_original_subtitles"] = original.get()
             self.settings["save_thumbnail"] = thumb.get()
             self.settings["max_concurrent"] = max(1, min(8, int(max_concurrent.get())))
@@ -3263,6 +3290,33 @@ class DesktopApp(VeyoraApp):
             )
         text.insert("1.0", body)
         text.configure(state="disabled")
+
+    def request_close(self):
+        if getattr(self,'_shutdown_requested',False):return
+        active=any(t['status'] not in self.queue_manager.TERMINAL for t in self.queue_manager.get_tasks_by_status()) or self.local_tasks.busy
+        def accepted():
+            self._shutdown_requested=True
+            def persist():
+                try:
+                    self.queue_manager._journal();self.queue_manager.recovery.flush()
+                    self.local_tasks.close()
+                    worker=self.local_tasks.worker_thread
+                    if worker:
+                        worker.join(timeout=20)
+                        if worker.is_alive():raise RuntimeError('Media worker is still stopping; retry close')
+                    self._ui_callbacks.put(self._on_close)
+                except Exception as exc:
+                    message=friendly_error(exc,self.is_arabic)
+                    def failed():
+                        self._shutdown_requested=False;self.notify(message,message,'error')
+                    self._ui_callbacks.put(failed)
+            threading.Thread(target=persist,daemon=True,name='save-before-close').start()
+        if active:
+            from confirmation import confirm
+            confirm(self,'إغلاق التطبيق','Close application',
+                'توجد مهام قيد التنفيذ. هل تريد الإغلاق؟ ستُحفظ التحميلات للاستئناف عند فتح البرنامج. ستتوقف الترجمة المحلية الحالية ويمكنك بدءها مجددًا.',
+                'Tasks are active. Close the app? Downloads will be saved for resume on restart. The current local translation will stop and can be started again.',accepted)
+        else:accepted()
 
     def _on_close(self):
         if hasattr(self, '_draft_url'):

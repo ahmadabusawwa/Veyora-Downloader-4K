@@ -40,6 +40,7 @@ class LocalTaskManager:
         self.forms = {}
         self.closed = False
         self.launch_count = 0
+        self.worker_thread = None
 
     @property
     def busy(self):
@@ -114,7 +115,7 @@ class LocalTaskManager:
                 if not event.is_set():
                     log_failure(exc, 'local media')
                 with self.lock:
-                    task.error = str(exc)
+                    task.error = type(exc).__name__ + ': ' + str(exc)
                     task.status = 'cancelled' if event.is_set() else 'failed'
                     task.stage = 'Task cancelled.' if event.is_set() else 'Task failed.'
                     task.fraction = None
@@ -125,7 +126,8 @@ class LocalTaskManager:
                     if self.active_id == tid:
                         self.active_id = None
 
-        threading.Thread(target=work, daemon=True, name='local-media').start()
+        self.worker_thread=threading.Thread(target=work, daemon=True, name='local-media')
+        self.worker_thread.start()
         return tid
 
     def close(self):
@@ -140,6 +142,15 @@ def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progr
         return run_translation(path, folder, mode=mode, checkpoint=checkpoint, progress=progress,
                                source_lang=source, target_lang=target, save_original=save_original, **(options or {}))
     import tempfile
+    from translator.video_renderer import get_ffprobe_info
+    progress("Checking input media",None)
+    if not Path(path).is_file():
+        raise FileNotFoundError(str(path))
+    streams=get_ffprobe_info(path).get("streams",[])
+    if mode in ("MP3","WAV") and not any(s.get("codec_type")=="audio" for s in streams):
+        raise ValueError("The selected file has no audio stream")
+    if mode in ("MP4","MKV") and not any(s.get("codec_type")=="video" for s in streams):
+        raise ValueError("The selected file has no video stream")
     from translator.video_renderer import run_ffmpeg, media_duration
     from translator.pipeline import _publish_file
     destination = Path(folder) / (Path(path).stem + '.' + uuid.uuid4().hex[:12] + '.' + mode.lower())
@@ -150,5 +161,8 @@ def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progr
         arguments = conversion_arguments(mode, options or {})
         run_ffmpeg(['-i', str(path), *arguments, temporary], checkpoint, duration=media_duration(path),
                    progress=lambda fraction, eta, speed: progress('Converting media', fraction))
+        if not temporary.is_file() or temporary.stat().st_size==0 or not get_ffprobe_info(temporary).get('streams'):
+            raise RuntimeError('FFmpeg output validation failed')
+        progress('Saving completed video',None)
         _publish_file(temporary, destination, checkpoint)
     return {'video': str(destination)}

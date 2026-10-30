@@ -63,10 +63,24 @@ def friendly_error(exc, arabic=False, cancelled=False, record=True):
     if record:
         log_failure(exc)
     text = str(exc).lower()
+    if isinstance(exc,FileNotFoundError) or 'filenotfounderror' in text or 'no such file' in text:
+        return 'الملف غير موجود. اختره مجددًا وتحقق من موقع الحفظ.' if arabic else 'The file is missing. Select it again and check the output folder.'
+    if 'no audio stream' in text:
+        return 'الملف لا يحتوي على مسار صوت لاستخراجه.' if arabic else 'This file has no audio stream to extract.'
+    if 'no video stream' in text:
+        return 'اختر ملفًا يحتوي على فيديو لتحويله.' if arabic else 'Choose a file containing video to convert.'
+    if any(x in text for x in ('ffprobe','ffmpeg')) and any(x in text for x in ('timed out','timeout')):
+        return 'استغرقت معالجة الملف وقتًا طويلًا. تحقق من سلامة الوسائط وموقع الحفظ.' if arabic else 'Media processing timed out. Check the input file and output location.'
     if any(x in text for x in ('connect', 'getaddrinfo', 'network', 'timed out', 'timeout',
                                'internet', 'download translation model', 'offline')):
         return ('تعذر الاتصال. تحقق من الإنترنت، وجهّز النماذج المطلوبة مرة واحدة ثم أعد المحاولة.'
                 if arabic else 'Connection failed. Check your internet and prepare the required models once, then retry.')
+    if 'requested format' in text or 'format is not available' in text:
+        return 'الجودة المطلوبة غير متاحة. اختر أفضل جودة متاحة أو دقة أدنى.' if arabic else 'The requested quality is unavailable. Choose Best Available or a lower resolution.'
+    if any(x in text for x in ('403','410','url has expired','expired url')):
+        return 'رفض الموقع الرابط أو انتهت صلاحيته. حدّث الرابط أو بيانات الدخول ثم أعد المحاولة.' if arabic else 'The site rejected this link or it expired. Refresh the link or sign-in data and retry.'
+    if any(x in text for x in ('video unavailable','not available in your country','removed','deleted','404')):
+        return 'الفيديو محذوف أو غير متاح لهذا الحساب أو الموقع.' if arabic else 'This video was removed or is unavailable for your account or location.'
     if '429' in text or 'rate limit' in text:
         return 'الموقع يقيّد الطلبات مؤقتًا. حاول لاحقًا.' if arabic else 'The website is limiting requests. Try again later.'
     if any(x in text for x in ('login', 'sign in', 'cookies', 'private video')):
