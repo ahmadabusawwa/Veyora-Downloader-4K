@@ -45,17 +45,31 @@ $prefix='Veyora-Review-'+[guid]::NewGuid().ToString()
 $programs=@($Application)
 $programs+=@(Get-ChildItem -LiteralPath (Split-Path $Application) -Recurse -File | Where-Object { $_.Name -in @('ffmpeg.exe','ffprobe.exe') } | ForEach-Object { $_.FullName })
 $names=@()
+$policy=New-Object -ComObject HNetCfg.FwPolicy2
 try {
+ $verified=@()
  foreach ($program in $programs) {
   $name=$prefix+'-'+$names.Count
-  New-NetFirewallRule -Name $name -DisplayName $name -Program $program -Direction Outbound -Action Block -Profile Any -Enabled True | Out-Null
+  Write-Host ('Creating native outbound block for '+$program)
+  if (-not [IO.Path]::IsPathFullyQualified($program) -or -not (Test-Path -LiteralPath $program)) { throw 'Firewall program path is not a real absolute executable path' }
+  $rule=New-Object -ComObject HNetCfg.FWRule
+  $rule.Name=$name
+  $rule.ApplicationName=$program
+  $rule.Protocol=256
+  $rule.Direction=2
+  $rule.Action=0
+  $rule.Profiles=2147483647
+  $rule.InterfaceTypes='All'
+  $rule.Enabled=$true
+  $policy.Rules.Add($rule)
   $names+=$name
+  $check=$policy.Rules.Item($name)
+  if (-not $check.Enabled -or $check.Direction -ne 2 -or $check.Action -ne 0 -or $check.ApplicationName -ne $program -or $check.Profiles -ne 2147483647) {
+   throw 'Native program firewall isolation was not verified'
+  }
+  $verified+=@{name=$check.Name;program=$check.ApplicationName;enabled=$check.Enabled;direction='Outbound';action='Block';all_profiles=($check.Profiles -eq 2147483647)}
  }
- $rules=@($names | ForEach-Object { Get-NetFirewallRule -Name $_ })
- if ($rules.Count -ne $programs.Count -or @($rules | Where-Object { $_.Enabled -ne 'True' -or $_.Action -ne 'Block' -or $_.Direction -ne 'Outbound' }).Count) {
-  throw 'Native program firewall isolation was not verified'
- }
- @{programs=$programs;rules=@($rules | Select-Object Name,Enabled,Direction,Action);profiles=@(Get-NetFirewallProfile | Select-Object Name,Enabled)} | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8NoBOM (Join-Path $OutputDirectory 'firewall-evidence.json')
+ @{programs=$programs;rules=$verified;profiles=@(Get-NetFirewallProfile | Select-Object Name,Enabled)} | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8NoBOM (Join-Path $OutputDirectory 'firewall-evidence.json')
  $env:HF_HUB_OFFLINE='1'
  $env:VEYORA_CONFIG_DIR=$ConfigDirectory
  $env:VEYORA_REVIEW_NETWORK_BLOCKED='1'
@@ -74,9 +88,10 @@ try {
   if (-not (Test-Path $result)) { throw 'Actual video report was not produced' }
   $report=Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
   if ($p.ExitCode -ne 0 -or -not $report.ok) { throw ('Actual video validation failed: '+($report.errors -join '; ')) }
+  Write-Host ('REAL_VIDEO_REPORT: '+($report | ConvertTo-Json -Depth 12 -Compress))
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }
 } finally {
- foreach ($name in $names) { Remove-NetFirewallRule -Name $name -ErrorAction SilentlyContinue }
+ foreach ($name in $names) { try { $policy.Rules.Remove($name) } catch { Write-Warning "Could not remove disposable test rule $name" } }
  Remove-Item Env:VEYORA_REVIEW_NETWORK_BLOCKED -ErrorAction SilentlyContinue
 }

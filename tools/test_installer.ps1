@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 if ($env:CI -ne 'true') { throw 'Run only on an isolated disposable Windows CI worker.' }
 $existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{2C64AD91-899D-44ED-BDC8-77AA65AB119F}_is1'
 if (Test-Path $existing) { throw 'Existing Veyora installation detected; refusing to alter it.' }
-$root=Join-Path $env:TEMP ('veyora-install-test-'+[guid]::NewGuid())
+$root=Join-Path $env:RUNNER_TEMP ('veyora-install-test-'+[guid]::NewGuid())
 $install=Join-Path $root 'application'
 $data=Join-Path $root 'user-data'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
