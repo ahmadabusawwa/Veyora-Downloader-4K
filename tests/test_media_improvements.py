@@ -63,3 +63,14 @@ def test_duplicate_download_and_explicit_restore_keep_identity(monkeypatch,tmp_p
     second.restore_previous()
     assert list(second.tasks)==[first]
     second.shutdown()
+
+
+def test_changing_speech_model_invalidates_transcript_cache(monkeypatch,tmp_path):
+    from translator import pipeline
+    import json
+    monkeypatch.setattr(pipeline,'config_root',lambda:tmp_path)
+    media=tmp_path/'video.mp4';media.write_bytes(b'unchanged-media')
+    (tmp_path/'settings.json').write_text(json.dumps(dict(speech_model='base')))
+    first=pipeline._cache_key(media,lambda:None)
+    (tmp_path/'settings.json').write_text(json.dumps(dict(speech_model='small')))
+    assert pipeline._cache_key(media,lambda:None)!=first

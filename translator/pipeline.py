@@ -34,7 +34,13 @@ def detect_text_language(text: str) -> str | None:
 
 
 def _cache_key(media, checkpoint, source_lang='en'):
-    prefix = ('veyora-base-v3-bounded-' + source_lang + '\0').encode('ascii')
+    try:
+        preferred = json.loads((config_root()/'settings.json').read_text(encoding='utf8')).get('speech_model','base')
+    except (OSError,ValueError,AttributeError):
+        preferred = 'base'
+    if preferred not in ('base','small','medium'):
+        preferred = 'base'
+    prefix = ('veyora-transcript-v4-' + preferred + '-' + source_lang + '\0').encode('ascii')
     digest = hashlib.sha256(prefix)
     with media.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
