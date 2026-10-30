@@ -1,0 +1,722 @@
+{
+  "navigation": {
+    "ok": true,
+    "version": "2.0.3",
+    "backend": "Actual installed GUI, real yt-dlp, local HTTP playlist",
+    "errors": [],
+    "playlist_entries": [
+      {
+        "id": "index-1",
+        "title": "Authorized local playlist (1)",
+        "duration": 0,
+        "url": "http://127.0.0.1:61520/first.mp4",
+        "thumbnail": "http://127.0.0.1:61520/poster.png"
+      },
+      {
+        "id": "index-2",
+        "title": "Authorized local playlist (2)",
+        "duration": 0,
+        "url": "http://127.0.0.1:61520/second.mp4",
+        "thumbnail": "http://127.0.0.1:61520/poster.png"
+      }
+    ],
+    "playlist_downloads_ok": true,
+    "original_thumbnails_requested": true,
+    "before": {
+      "widgets": 932,
+      "callbacks": 4,
+      "threads": 6,
+      "memory_bytes": 129654784,
+      "key_binding": "if {\"[3066240939904handle_global_shortcuts %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n",
+      "wheel_binding": "if {\"[3066290420928_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066291107584_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066291198016_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066295374336_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066295428224_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n"
+    },
+    "after": {
+      "widgets": 932,
+      "callbacks": 4,
+      "threads": 6,
+      "memory_bytes": 129822720,
+      "key_binding": "if {\"[3066240939904handle_global_shortcuts %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n",
+      "wheel_binding": "if {\"[3066290420928_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066291107584_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066291198016_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066295374336_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n\nif {\"[3066295428224_mouse_wheel_all %# %b %f %h %k %s %t %w %x %y %A %E %K %N %W %T %X %Y %D]\" == \"break\"} break\n"
+    },
+    "build_counts": {
+      "Dashboard": 1,
+      "Playlist": 1,
+      "Downloads": 1,
+      "Translation": 1,
+      "Convert": 1,
+      "History": 1,
+      "Settings": 1
+    },
+    "repeated_clicks_per_page": 20,
+    "rapid_rounds": 20,
+    "max_navigation_call_seconds": 0.03099999999994907,
+    "memory_growth_bytes": 167936,
+    "navigation_ok": true,
+    "ui_max_gap_seconds": 0.3120000000000118
+  },
+  "features": [
+    {
+      "ok": true,
+      "errors": [],
+      "stage": "first",
+      "link_survived_20_navigation_rounds": true,
+      "actual_gui_wav_conversion": true,
+      "real_thumbnails_after_restart_without_server": true,
+      "actual_gui_style_preview": true
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "stage": "restart",
+      "public_link_restored": true
+    }
+  ],
+  "recovery": {
+    "ok": true,
+    "errors": [],
+    "partial_bytes_before_kill": 65536,
+    "requests_after_restart": [
+      "",
+      "bytes=65536-"
+    ],
+    "task_count": 1,
+    "sha256": "3564b0d3891330bbabb95e74c7580474e609deff81cf209587face86b0b4a3fc",
+    "actual_process_killed": true,
+    "range_resume": true
+  },
+  "video": {
+    "ok": true,
+    "version": "2.0.3",
+    "backend": "Actual installed GUI + spawned Whisper/Argos/FFmpeg",
+    "scope": "Synthetic English speech translated to Arabic; not a human speech accuracy certification",
+    "input_sha256": "3564b0d3891330bbabb95e74c7580474e609deff81cf209587face86b0b4a3fc",
+    "cancellation_input_sha256": "56c0875100c165843de0ed34a68b714dd96d6badff0510cf492a84f8234d4a9b",
+    "errors": [],
+    "phases": [
+      {
+        "seconds": 0.25,
+        "phase": "starting",
+        "stage": ""
+      },
+      {
+        "seconds": 0.469,
+        "phase": "translating",
+        "stage": "Task started, preparing…"
+      },
+      {
+        "seconds": 0.954,
+        "phase": "translating",
+        "stage": "Checking saved English transcript"
+      },
+      {
+        "seconds": 1.204,
+        "phase": "translating",
+        "stage": "Waiting for speech recognizer"
+      },
+      {
+        "seconds": 1.438,
+        "phase": "translating",
+        "stage": "Loading en speech model base.en (first use may download it)"
+      },
+      {
+        "seconds": 2.157,
+        "phase": "translating",
+        "stage": "Recognizing en speech on CPU"
+      },
+      {
+        "seconds": 3.344,
+        "phase": "translating",
+        "stage": "Recognizing en speech on CPU | Working…"
+      },
+      {
+        "seconds": 14.594,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 7s / 180s"
+      },
+      {
+        "seconds": 15.719,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 7s / 180s | Working…"
+      },
+      {
+        "seconds": 24.797,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 27s / 180s"
+      },
+      {
+        "seconds": 25.875,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 27s / 180s | Working…"
+      },
+      {
+        "seconds": 34.563,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 59s / 180s"
+      },
+      {
+        "seconds": 35.657,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 59s / 180s | Working…"
+      },
+      {
+        "seconds": 43.375,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 78s / 180s"
+      },
+      {
+        "seconds": 44.469,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 78s / 180s | Working…"
+      },
+      {
+        "seconds": 52.063,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 111s / 180s"
+      },
+      {
+        "seconds": 53.063,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 111s / 180s | Working…"
+      },
+      {
+        "seconds": 60.579,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 132s / 180s"
+      },
+      {
+        "seconds": 61.641,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 132s / 180s | Working…"
+      },
+      {
+        "seconds": 68.204,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 161s / 180s"
+      },
+      {
+        "seconds": 69.219,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 161s / 180s | Working…"
+      },
+      {
+        "seconds": 71.844,
+        "phase": "translating",
+        "stage": "Recognizing en speech: 180s / 180s"
+      },
+      {
+        "seconds": 72.141,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 2/42"
+      },
+      {
+        "seconds": 72.266,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 5/42"
+      },
+      {
+        "seconds": 72.391,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 7/42"
+      },
+      {
+        "seconds": 72.516,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 20/42"
+      },
+      {
+        "seconds": 72.579,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 29/42"
+      },
+      {
+        "seconds": 72.704,
+        "phase": "translating",
+        "stage": "Translating locally: subtitle 33/42"
+      },
+      {
+        "seconds": 73.454,
+        "phase": "translating",
+        "stage": "Burning Arabic subtitles: 61.5% | 218.00x | ETA ~00:00:00"
+      },
+      {
+        "seconds": 73.704,
+        "phase": "translating",
+        "stage": "Burning Arabic subtitles: 99.9% | 222.00x | ETA ~00:00:00"
+      },
+      {
+        "seconds": 73.829,
+        "phase": "translating",
+        "stage": "Saved: D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.81393c865784.en.srt, D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.81393c865784.ar.srt, D:\\a\\Veyora-Downloader-4K\\Veyora-Downloader-4K\\real-video-review\\translated\\فيديو تجريبي.81393c865784.ar.mp4"
+      },
+      {
+        "seconds": 74.125,
+        "phase": "cancelling_real_job",
+        "stage": "Task started, preparing…"
+      },
+      {
+        "seconds": 74.61,
+        "phase": "cancelling_real_job",
+        "stage": "Checking saved English transcript"
+      },
+      {
+        "seconds": 74.797,
+        "phase": "cancelling_real_job",
+        "stage": "Waiting for speech recognizer"
+      },
+      {
+        "seconds": 74.922,
+        "phase": "cancelling_real_job",
+        "stage": "Loading en speech model base.en (first use may download it)"
+      },
+      {
+        "seconds": 75.485,
+        "phase": "cancelling_real_job",
+        "stage": "Recognizing en speech on CPU"
+      },
+      {
+        "seconds": 76.547,
+        "phase": "cancelling_real_job",
+        "stage": "Recognizing en speech on CPU | Working…"
+      },
+      {
+        "seconds": 84.797,
+        "phase": "cancelling_real_job",
+        "stage": "Recognizing en speech: 7s / 180s"
+      },
+      {
+        "seconds": 84.938,
+        "phase": "cancelling_real_job",
+        "stage": "Cancelling task…"
+      },
+      {
+        "seconds": 87.11,
+        "phase": "cancelling_real_job",
+        "stage": "Task cancelled."
+      }
+    ],
+    "window_actions": [
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      },
+      {
+        "action": "minimized",
+        "while_processing": true
+      },
+      {
+        "action": "maximized",
+        "while_processing": true
+      },
+      {
+        "action": "restored",
+        "while_processing": true
+      }
+    ],
+    "network": "Program-specific Windows outbound firewall blocks; HF_HUB_OFFLINE=1",
+    "window_actions_ok": true,
+    "burned_subtitle_white_pixels": 22,
+    "frame_sha256": "28c5cbddde37500616822f043e5f9e81aeac46c1bcc6f003eab7a01f82c3a347",
+    "video_translation_ok": true,
+    "source_transcript": "hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! today the weather is beautiful! please download this video and save the subtitles! hello world! today the weather is beautiful! today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello world. today the weather is beautiful. please download this video and save the subtitles. hello, where",
+    "arabic_translation": "مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبا العالم! اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! مرحبا العالم! اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! مرحبا العالم! اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! مرحبا العالم! مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. مرحبا العالم. اليوم الطقس جميل اليوم الطقس جميل من فضلك قم بتحميل هذا الفيديو واحتفظ بالترجمة مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة. اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! اليوم الطقس جميل الرجاء تحميل هذا الفيديو وإنقاذ الترجمة! اليوم الطقس جميل اليوم الطقس جميل من فضلك قم بتحميل هذا الفيديو واحتفظ بالترجمة مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبًا بالعالم، الطقس اليوم جميل، من فضلك قم بتحميل هذا الفيديو وإنقاذ العنوان الفرعي مرحبا، حيث",
+    "cue_count": 42,
+    "duration_seconds": 180,
+    "outputs": {
+      "source_subtitle": {
+        "path": "translated\\فيديو تجريبي.81393c865784.en.srt",
+        "sha256": "c089b89d657ce1fb1aea6128324e7359685b497279145e040d428514544b49ea",
+        "size": 3693
+      },
+      "subtitle": {
+        "path": "translated\\فيديو تجريبي.81393c865784.ar.srt",
+        "sha256": "f5433667d904b7cfd22ad8dfed763396abdbea54baad7a9d5c9a1f54b1d15838",
+        "size": 4581
+      },
+      "video": {
+        "path": "translated\\فيديو تجريبي.81393c865784.ar.mp4",
+        "sha256": "daae806f93c8e2636cf39254bcf994e0ed31de0a098ec2679c16f627d7ddd7ac",
+        "size": 1515062
+      }
+    },
+    "cancel_during_stage": "Recognizing en speech: 7s / 180s",
+    "cancellation_seconds": 2.313,
+    "remaining_workers_after_cancel": [],
+    "actual_speech_model_loads": [
+      {
+        "pid": 3268,
+        "model": "base.en",
+        "event": "speech_model_loaded"
+      },
+      {
+        "pid": 6420,
+        "model": "base.en",
+        "event": "speech_model_loaded"
+      }
+    ],
+    "cancellation_after_navigation": true,
+    "cancellation_ok": true,
+    "seconds": 87.11,
+    "page_build_counts": {
+      "Dashboard": 1,
+      "Playlist": 1,
+      "Downloads": 1,
+      "Translation": 1,
+      "Convert": 1,
+      "History": 1,
+      "Settings": 1
+    },
+    "local_job_launches": 2,
+    "navigation_during_speech_steps": 140,
+    "minimize_restore_cycles": 20,
+    "ui_timer": {
+      "samples": 1296,
+      "max_gap_seconds": 0.219,
+      "p95_gap_seconds": 0.125
+    }
+  },
+  "quality": {
+    "ok": true,
+    "errors": [],
+    "recognition": [
+      {
+        "sample": "ordinary",
+        "enhanced": false,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.844
+      },
+      {
+        "sample": "ordinary",
+        "enhanced": true,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.188
+      },
+      {
+        "sample": "loud_music",
+        "enhanced": false,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.125
+      },
+      {
+        "sample": "loud_music",
+        "enhanced": true,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.328
+      },
+      {
+        "sample": "pitch_modulated_vocal",
+        "enhanced": false,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.063
+      },
+      {
+        "sample": "pitch_modulated_vocal",
+        "enhanced": true,
+        "reference": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "text": "Hello world. Today the weather is beautiful. Please download this video and save the subtitles.",
+        "wer": 0,
+        "seconds": 1.312
+      }
+    ],
+    "translation": [
+      {
+        "source_parts": [
+          "But they won't flower",
+          "like they did last spring."
+        ],
+        "baseline": "لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "contextual": "لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "baseline_seconds": 0.25,
+        "contextual_seconds": 0.09400000000005093,
+        "candidate_length_penalty_1": "لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "candidate_seconds": 0.07799999999997453,
+        "reference_ar": "لكنها لن تُزهر كما أزهرت في الربيع الماضي",
+        "engine": "unchanged Argos/CTranslate2"
+      },
+      {
+        "source_parts": [
+          "Please download this video",
+          "and save the subtitles."
+        ],
+        "baseline": "الرجاء تحميل هذا الفيديو وأنقذوا المترجم",
+        "contextual": "الرجاء تحميل هذا الفيديو وإنقاذ الترجمة.",
+        "baseline_seconds": 0.06299999999998818,
+        "contextual_seconds": 0.07799999999997453,
+        "candidate_length_penalty_1": "الرجاء تحميل هذا الفيديو وإنقاذ الترجمة.",
+        "candidate_seconds": 0.06200000000001182,
+        "reference_ar": "يرجى تنزيل هذا الفيديو وحفظ الترجمة",
+        "engine": "unchanged Argos/CTranslate2"
+      },
+      {
+        "source_parts": [
+          "I brought you daffodils in a pretty string.",
+          "But they won't flower like they did last spring."
+        ],
+        "baseline": "لقد أحضرت لكِ حلوى في خيط جميل لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "contextual": "لقد أحضرت لكِ أزهار في خيط جميل لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "baseline_seconds": 0.09400000000005093,
+        "contextual_seconds": 0.125,
+        "candidate_length_penalty_1": "لقد أحضرت لكِ أزهار في خيط جميل لكنهم لن يزهروا كما فعلوا في الربيع الماضي",
+        "candidate_seconds": 0.125,
+        "reference_ar": "لكنها لن تُزهر كما أزهرت في الربيع الماضي",
+        "engine": "unchanged Argos/CTranslate2"
+      }
+    ],
+    "limitations": [
+      "Synthetic SAPI speech and synthesized accompaniment; human singing accuracy has not been verified.",
+      "Center enhancement is not neural separation and cannot recover all speech under music."
+    ],
+    "mixture_speech_to_music_rms_db": -8.560393652297007,
+    "speech_improvement_verified_on_fixture": false,
+    "conversion": {
+      "MP4": [
+        "h264",
+        "aac"
+      ],
+      "MKV": [
+        "h264",
+        "aac"
+      ],
+      "MP3": [
+        "mp3"
+      ],
+      "WAV": [
+        "pcm_s16le"
+      ]
+    },
+    "style_preview_and_export": true
+  }
+}

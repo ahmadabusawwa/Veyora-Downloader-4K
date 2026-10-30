@@ -1,0 +1,73 @@
+name: Deliver verified Veyora 2.0.3 files
+on:
+  push:
+    branches: ['delivery/veyora-2.0.3']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  separate-verified-artifacts:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful build and separate its exact bytes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $expected='ffd9c5960afc732bf1502352c1e29a5870176dbd'
+          $run=gh api repos/ahmadabusawwa/Veyora-Downloader-4K/actions/runs/41123796433 | ConvertFrom-Json
+          if ($LASTEXITCODE -or $run.head_sha -ne $expected -or $run.conclusion -ne 'success') { throw 'The pinned tested build is not successful or its source changed' }
+          gh run download 41123796433 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.3-Windows-review --dir tested-input
+          if ($LASTEXITCODE) { throw 'Could not obtain the tested files' }
+          $build=(Get-Content tested-input/dist/BUILD_COMMIT.txt -Raw).Trim()
+          if ($build -ne $expected) { throw 'Build commit manifest mismatch' }
+          $entries=Get-Content tested-input/dist/SHA256.json -Raw | ConvertFrom-Json
+          $required=@('Veyora-Pro-Full-Source.zip','Veyora-Pro-Windows-Portable.zip','Veyora-Pro-Setup.exe')
+          $actual=@($entries | ForEach-Object { Split-Path $_.Path -Leaf })
+          if (@(Compare-Object ($required | Sort-Object) ($actual | Sort-Object)).Count) { throw 'The checksum manifest does not cover exactly the expected files' }
+          New-Item -ItemType Directory -Force delivery,report,previous-backup | Out-Null
+          foreach ($entry in $entries) {
+            $name=Split-Path $entry.Path -Leaf
+            $file=Join-Path tested-input/dist $name
+            if ((Get-FileHash $file -Algorithm SHA256).Hash -ne $entry.Hash) { throw ('Tested artifact checksum mismatch: '+$name) }
+            Copy-Item -LiteralPath $file -Destination (Join-Path delivery $name)
+          }
+          Copy-Item docs/MEDIA_REPAIR_RESULT_2_0_3.md report/Veyora-Pro-Report.md
+          Copy-Item docs/media-results-2.0.3.json report/media-results-2.0.3.json
+          Copy-Item tested-input/dist/BUILD_COMMIT.txt report/BUILD_COMMIT.txt
+          Get-FileHash delivery/* -Algorithm SHA256 | ConvertTo-Json | Set-Content report/SHA256.json
+          Copy-Item tested-input/real-video-review report/real-video-review -Recurse
+          Copy-Item tested-input/backups/* previous-backup/
+          Write-Host 'PASS: all three files match the successful Windows build checksum manifest. No executable was rebuilt or changed.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-Full-Source
+          path: delivery/Veyora-Pro-Full-Source.zip
+          compression-level: 0
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-Windows-Portable
+          path: delivery/Veyora-Pro-Windows-Portable.zip
+          compression-level: 0
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-Setup
+          path: delivery/Veyora-Pro-Setup.exe
+          compression-level: 0
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-Report
+          path: report/
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-2.0.2-Backup
+          path: previous-backup/
+          retention-days: 90
