@@ -33,6 +33,8 @@ if ($p.ExitCode -ne 0 -or -not (Test-Path $selfReport)) { throw 'Installed trans
 $report=Get-Content -LiteralPath $selfReport -Raw | ConvertFrom-Json
 if (-not $report.ok -or -not $report.srt_translation_and_mp4_render) { throw 'Installed translation report did not confirm success' }
 Copy-Item -LiteralPath $selfReport -Destination (Join-Path $PSScriptRoot '..\installed-translation.json') -Force
+# Actual audio-to-Arabic video test, driven through installed GUI commands.
+& (Join-Path $PSScriptRoot 'real_video_review.ps1') -Application "$install\Veyora-Pro.exe" -ConfigDirectory $data -OutputDirectory (Join-Path $PSScriptRoot '..\real-video-review')
 $p=Start-Process -FilePath "$install\unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait
 if ($p.ExitCode -ne 0) { throw 'Uninstall failed' }
 if ((Get-FileHash "$data\settings.json").Hash -ne $before.Hash) { throw 'Settings changed' }

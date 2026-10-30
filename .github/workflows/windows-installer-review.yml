@@ -2,9 +2,10 @@ name: Windows EXE and Setup review
 on:
   workflow_dispatch:
   push:
-    branches: ['development/veyora-2-automation', 'repair/veyora-2-*']
+    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.1-*']
 permissions:
   contents: read
+  actions: read
 jobs:
   build:
     runs-on: windows-2022
@@ -28,6 +29,16 @@ jobs:
           if (-not $notice) { throw 'FFmpeg distribution license missing' }
           if ($notice.FullName -ne (Join-Path $exe.DirectoryName 'LICENSE.txt')) { Copy-Item $notice.FullName (Join-Path $exe.DirectoryName 'LICENSE.txt') }
           "VEYORA_FFMPEG_DIR=$($exe.DirectoryName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Preserve previous working Setup as backup
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41084220503 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.1-Windows-review --dir previous-review
+          if ($LASTEXITCODE) { throw 'Could not preserve the previous working Setup' }
+          New-Item -ItemType Directory -Force backups | Out-Null
+          Copy-Item previous-review/dist/setup/Veyora-Pro-Setup-2.0.1.exe backups/Veyora-Pro-Setup-2.0.1-previous.exe
+          Get-FileHash backups/Veyora-Pro-Setup-2.0.1-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
       - name: Build tested EXE and Setup
         shell: pwsh
         run: .\build_windows_2.ps1
@@ -35,7 +46,7 @@ jobs:
         shell: pwsh
         run: |
           $env:VEYORA_CONFIG_DIR=Join-Path $env:RUNNER_TEMP 'veyora-model-review'
-          & .\.build-venv\Scripts\python.exe prepare_translation.py
+          & .\.build-venv\Scripts\python.exe prepare_translation.py --speech --speech-model base.en
           if ($LASTEXITCODE) { throw 'Translation model preparation failed' }
           "VEYORA_TEST_MODELS=$(Join-Path $env:VEYORA_CONFIG_DIR 'models')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Actual packaged installation and uninstall checks
@@ -53,4 +64,6 @@ jobs:
             dist/*.zip
             windows-tests.xml
             installed-translation.json
-          retention-days: 14
+            real-video-review/**
+            backups/**
+          retention-days: 90

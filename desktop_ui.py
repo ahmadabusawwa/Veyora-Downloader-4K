@@ -3000,6 +3000,8 @@ class DesktopApp(VeyoraApp):
             if target not in LANGUAGES:
                 target = "ar"
             output = mode.get() if convert else self._subtitle_mode_from_display(mode.get())
+            self._local_result = None
+            self._local_error = None
             self._local_running = True
             self._local_cancel.clear()
             self._local_started_at = time.monotonic()
@@ -3051,8 +3053,10 @@ class DesktopApp(VeyoraApp):
                             save_original=save_original,
                         )
                     checkpoint()
+                    self._ui_callbacks.put(lambda value=result: setattr(self, "_local_result", value))
                     progress(saved_text + ", ".join(result.values()), 1)
                 except Exception as exc:
+                    self._ui_callbacks.put(lambda value=str(exc): setattr(self, "_local_error", value))
                     progress(friendly_error(exc, arabic, self._local_cancel.is_set()), 0)
                 finally:
                     self._ui_callbacks.put(finish)
@@ -3076,6 +3080,9 @@ class DesktopApp(VeyoraApp):
             width=120,
         )
         cancel_button.pack(side="left", padx=6)
+        # Stable controls for integration automation; commands remain the real UI path.
+        self._local_task_controls = dict(path=path, source=src, target=dst, mode=mode,
+            start=start_button, cancel=cancel_button, status=label)
         update_controls()
         if self._local_running:
             render_progress(*getattr(self, "_local_status", ("Working…", None)))
@@ -3086,9 +3093,9 @@ class DesktopApp(VeyoraApp):
             if self._local_running:
                 update_controls()
                 render_progress(*getattr(self, "_local_status", ("Working…", None)))
-            frame.after(1000, tick)
+            self.after(1000, tick)
 
-        frame.after(1000, tick)
+        self.after(1000, tick)
 
         note = ctk.CTkLabel(
             frame,

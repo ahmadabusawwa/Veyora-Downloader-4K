@@ -1883,6 +1883,9 @@ def packaged_self_test(report_path):
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    if len(sys.argv) == 5 and sys.argv[1] == '--review-video':
+        from review_validation import run_video_review
+        sys.exit(run_video_review(sys.argv[2], sys.argv[3], sys.argv[4]))
     if len(sys.argv) == 3 and sys.argv[1] == '--gui-smoke':
         from desktop_ui import DesktopApp
         from PIL import ImageGrab
