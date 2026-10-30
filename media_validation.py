@@ -24,6 +24,30 @@ def wer(reference,hypothesis):
     return row[-1]/max(1,len(a))
 
 
+def _original_music(path):
+    """Original synthesized stereo melody/percussion across the speech band."""
+    import numpy as np
+    import wave
+    rate=16000
+    timebase=np.arange(rate*30)/rate
+    beat=np.floor(timebase*4).astype(int)
+    envelope=np.exp(-7*(timebase*4-beat))
+    notes=np.array([440,523.251,659.255,587.33,493.883,698.456,659.255,523.251])
+    channels=[]
+    for shift in (0,3):
+        frequency=notes[(beat+shift)%len(notes)]
+        signal=sum(np.sin(2*np.pi*frequency*timebase*harmonic)/harmonic**1.3 for harmonic in range(1,9))
+        signal=signal*envelope
+        rng=np.random.default_rng(41+shift)
+        hat=rng.standard_normal(len(timebase))*.07*np.exp(-25*(timebase*4-beat))
+        channels.append(signal+hat)
+    music=np.stack(channels,axis=1)
+    music=music/max(1,float(np.max(np.abs(music))))*.95
+    with wave.open(str(path),'wb') as stream:
+        stream.setnchannels(2);stream.setsampwidth(2);stream.setframerate(rate)
+        stream.writeframes((music*32767).astype('<i2').tobytes())
+
+
 def quality_review(wave,folder):
     if os.environ.get('VEYORA_REVIEW_NETWORK_BLOCKED') != '1':
         raise RuntimeError('Native quality tests require verified firewall isolation')
@@ -37,6 +61,17 @@ def quality_review(wave,folder):
     report=dict(ok=False,errors=[],recognition=[],translation=[],limitations=['Synthetic SAPI speech and synthesized accompaniment; human singing accuracy has not been verified.','Center enhancement is not neural separation and cannot recover all speech under music.'])
     reference='Hello world. Today the weather is beautiful. Please download this video and save the subtitles.'
     try:
+        _original_music(folder/'original-music.wav')
+        extract_audio(wave,folder/'reference-16k.wav')
+        import wave as wav_reader
+        import numpy as np
+        import math
+        def rms(path):
+            with wav_reader.open(str(path),'rb') as audio:
+                samples=np.frombuffer(audio.readframes(audio.getnframes()),dtype='<i2').astype(float)/32768
+                samples=samples.reshape(-1,audio.getnchannels()).mean(axis=1)
+                return float(np.sqrt(np.mean(samples*samples)))
+        report['mixture_speech_to_music_rms_db']=20*math.log10(max(1e-9,rms(folder/'reference-16k.wav')*.35)/max(1e-9,rms(folder/'original-music.wav')*.8))
         recognizer=Transcriber(language='en')
         for name in ('ordinary','loud_music','pitch_modulated_vocal'):
             media=folder/(name+'.wav')
@@ -45,11 +80,11 @@ def quality_review(wave,folder):
                 shutil.copyfile(wave,media)
             else:
                 # Known reference speech; deterministic original accompaniment, not downloaded copyrighted music.
-                speech_filter='[0:a]aformat=channel_layouts=stereo,volume=0.5[s];'
+                speech_filter='[0:a]aformat=channel_layouts=stereo,volume=0.35[s];'
                 if name=='pitch_modulated_vocal':
-                    speech_filter='[0:a]vibrato=f=5:d=0.6,aformat=channel_layouts=stereo,volume=0.5[s];'
-                run_ffmpeg(['-i',wave,'-f','lavfi','-i','aevalsrc=0.35*sin(2*PI*220*t)+0.2*sin(2*PI*330*t)|0.35*sin(2*PI*277*t)+0.2*sin(2*PI*415*t):s=16000:d=30',
-                    '-filter_complex',speech_filter+'[s][1:a]amix=inputs=2:duration=first:normalize=0[out]', '-map','[out]',media])
+                    speech_filter='[0:a]vibrato=f=5:d=0.6,aformat=channel_layouts=stereo,volume=0.35[s];'
+                run_ffmpeg(['-i',wave,'-i',folder/'original-music.wav',
+                    '-filter_complex',speech_filter+'[1:a]volume=0.8[m];[s][m]amix=inputs=2:duration=first:normalize=0[out]', '-map','[out]',media])
             for enhanced in (False,True):
                 audio=folder/(name+('-enhanced' if enhanced else '-baseline')+'.wav')
                 started=time.monotonic()
