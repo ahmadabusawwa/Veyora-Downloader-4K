@@ -143,6 +143,11 @@ def run_close_review(media,folder,kind):
     if kind=='download':
         class Quiet(http.server.SimpleHTTPRequestHandler):
             def log_message(self,*a):pass
+            def copyfile(self,source,output):
+                try:
+                    while chunk:=source.read(8192):
+                        output.write(chunk);output.flush();time.sleep(.04)
+                except (BrokenPipeError,ConnectionResetError):pass
         server=http.server.ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(Path(media).parent)))
         threading.Thread(target=server.serve_forever,daemon=True).start()
     def poll():
@@ -161,7 +166,7 @@ def run_close_review(media,folder,kind):
             elif state['phase']=='active':
                 if kind=='download':
                     current=app.queue_manager.get_tasks_by_status()
-                    report['last_download_tasks']=[{key:t.get(key) for key in ('id','status','progress','error','downloaded_file')} for t in current]
+                    report['last_download_tasks']=[{key:t.get(key) for key in ('id','status','progress','speed','filesize','error','downloaded_file')} for t in current]
                     active=any(t['status']=='Downloading' and t['progress']>0 for t in current)
                     if current and all(t['status'] in app.queue_manager.TERMINAL for t in current):
                         raise RuntimeError('Download ended before active-close test: '+str(report['last_download_tasks']))
@@ -192,6 +197,9 @@ def run_close_review(media,folder,kind):
         try:
             app.queue_manager.recovery.thread.join(2)
             saved=app.queue_manager.recovery.load();assert any(t['status'] not in app.queue_manager.TERMINAL for t in saved)
+            parts=list((folder/'downloads').glob('*.part'))
+            assert parts and any(0<part.stat().st_size<Path(media).stat().st_size for part in parts),'No incomplete real media part at close'
+            report['partial_files']=[dict(name=part.name,bytes=part.stat().st_size) for part in parts]
             report['unfinished_download_durable']=True
         except Exception as exc:report['errors'].append(str(exc))
     report['yes_closed_app']=state['yes'] and getattr(app,'_closing',False)

@@ -86,8 +86,13 @@ function Test-ActualClose([string]$kind) {
   $env:VEYORA_CONFIG_DIR=$savedConfig
  }
 }
-Test-ActualClose 'idle'
-Test-ActualClose 'download'
+$closeFailures=New-Object 'System.Collections.Generic.List[string]'
+function Record-ActualClose([string]$kind) {
+ try { Test-ActualClose $kind }
+ catch { $closeFailures.Add($_.Exception.Message);Write-Warning $_.Exception.Message }
+}
+Record-ActualClose 'idle'
+Record-ActualClose 'download'
 
 $recoveryDirectory=Join-Path $OutputDirectory 'recovery'
 $p=Start-Process -FilePath $Application -ArgumentList @('--review-recovery',"`"$video`"","`"$recoveryDirectory`"") -PassThru
@@ -155,7 +160,7 @@ try {
   $quality=Get-Content -Raw -LiteralPath (Join-Path $qualityDirectory 'media-quality-results.json') | ConvertFrom-Json
   Write-Host ('QUALITY_REPORT: '+($quality | ConvertTo-Json -Depth 10 -Compress))
   if ($p.ExitCode -ne 0 -or -not $quality.ok) { throw 'Actual installed media quality review failed' }
-  Test-ActualClose 'translation'
+  Record-ActualClose 'translation'
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }
 } finally {
@@ -163,3 +168,4 @@ try {
  Remove-Item Env:VEYORA_REVIEW_NETWORK_BLOCKED -ErrorAction SilentlyContinue
  Remove-Item Env:VEYORA_REVIEW_AUDIT_DIR -ErrorAction SilentlyContinue
 }
+if ($closeFailures.Count) { throw ('Actual close failures: '+($closeFailures -join '; ')) }
