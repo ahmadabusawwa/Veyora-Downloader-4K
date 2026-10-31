@@ -10,6 +10,30 @@ from PIL import Image,ImageOps
 from translator.subtitle_style import DEFAULT,normalize_style
 
 
+def _render_previews(requests,results,stop,arabic):
+    """No Tk objects or closures: even final reference release stays off this worker."""
+    def checkpoint():
+        if stop.is_set():raise RuntimeError('Cancelled by user')
+    while not stop.is_set():
+        try:token,media,selected,subtitle=requests.get(timeout=.2)
+        except queue.Empty:continue
+        image=None;message=None
+        try:
+            from translator.video_renderer import preview_subtitles
+            with tempfile.TemporaryDirectory(prefix='veyora-live-preview-') as folder:
+                output=Path(folder)/'preview.png'
+                preview_subtitles(media or None,output,selected,checkpoint,subtitle_file=subtitle)
+                with Image.open(output) as rendered:image=rendered.copy()
+        except Exception as exc:
+            if stop.is_set():return
+            from runtime_support import friendly_error
+            message=friendly_error(exc,arabic)
+        if stop.is_set():return
+        try:results.get_nowait()
+        except queue.Empty:pass
+        results.put_nowait((token,image,media,message))
+
+
 def subtitle_options(app,path):
     previous=getattr(app,'_subtitle_options_window',None)
     if previous is not None and previous.winfo_exists():previous.lift();return
@@ -68,34 +92,24 @@ def subtitle_options(app,path):
         window._preview_image=ctk.CTkImage(image,size=image.size)
         preview.configure(image=window._preview_image,text='')
     preview.bind('<Configure>',fit_preview,add='+')
-    changed=threading.Event();requests=queue.Queue(maxsize=1);pending=[None];revision=[0];worker=[None];trace_id=[None]
-    def checkpoint():
-        if changed.is_set() or app.local_tasks.closed:raise RuntimeError('Cancelled by user')
+    changed=threading.Event();requests=queue.Queue(maxsize=1);results=queue.Queue(maxsize=1)
+    pending=[None];result_timer=[None];revision=[0];worker=[None];trace_id=[None]
     def values():return normalize_style({key:var.get() for key,var in variables.items()})
-    def work():
-        while not changed.is_set():
-            try:token,media,selected,subtitle=requests.get(timeout=.2)
-            except queue.Empty:continue
-            try:
-                from translator.video_renderer import preview_subtitles
-                with tempfile.TemporaryDirectory(prefix='veyora-live-preview-') as folder:
-                    output=Path(folder)/'preview.png'
-                    preview_subtitles(media or None,output,selected,checkpoint,subtitle_file=subtitle)
-                    with Image.open(output) as img:image=img.copy()
-                def done(token=token,image=image,media=media):
-                    if changed.is_set() or token!=revision[0]:return
+    def pump_results():
+        result_timer[0]=None
+        if changed.is_set():return
+        try:
+            while True:
+                token,image,media,message=results.get_nowait()
+                if token!=revision[0]:continue
+                if message:status.configure(text=app.t(message,message))
+                else:
                     window._preview_source=image
                     displayed_size[0]=None;fit_preview()
                     window._preview_revision=token
                     status.configure(text=app.t('إطار من الفيديو بإعدادات التصدير نفسها.','Video frame with the export styling.') if media else app.t('خلفية تجريبية؛ اختر فيديو لمعاينته.','Sample background; select a video to preview it.'))
-                app._ui_callbacks.put(done)
-            except Exception as exc:
-                if changed.is_set():return
-                from runtime_support import friendly_error
-                message=friendly_error(exc,app.is_arabic)
-                def failed(token=token,message=message):
-                    if not changed.is_set() and token==revision[0]:status.configure(text=app.t(message,message))
-                app._ui_callbacks.put(failed)
+        except queue.Empty:pass
+        result_timer[0]=window.after(50,pump_results)
     def refresh():
         pending[0]=None
         try:selected=values()
@@ -113,7 +127,7 @@ def subtitle_options(app,path):
         requests.put_nowait(request)
         status.configure(text=app.t('جارٍ تحديث المعاينة…','Updating preview…'))
         if worker[0] is None:
-            worker[0]=threading.Thread(target=work,daemon=True,name='live-subtitle-preview');worker[0].start()
+            worker[0]=threading.Thread(target=_render_previews,args=(requests,results,changed,app.is_arabic),daemon=True,name='live-subtitle-preview');worker[0].start()
     def schedule(*_):
         if changed.is_set():return
         if pending[0]:window.after_cancel(pending[0])
@@ -136,10 +150,13 @@ def subtitle_options(app,path):
         if pending[0]:
             try:window.after_cancel(pending[0])
             except Exception:pass
+        if result_timer[0]:
+            try:window.after_cancel(result_timer[0])
+            except Exception:pass
         try:path.trace_remove('write',trace_id[0])
         except Exception:pass
         for variable,token in variable_traces:
             try:variable.trace_remove('write',token)
             except Exception:pass
         variable_traces.clear()
-    window.bind('<Destroy>',destroy,add='+');schedule()
+    window.bind('<Destroy>',destroy,add='+');schedule();result_timer[0]=window.after(50,pump_results)
