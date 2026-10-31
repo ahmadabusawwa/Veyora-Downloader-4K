@@ -1,6 +1,9 @@
 name: Windows EXE and Setup review
 on:
   workflow_dispatch:
+  # Build on a draft review PR as well as direct pushes; never publish a release.
+  pull_request:
+    branches: ['development/veyora-2.0.3-regression-recovery']
   push:
     branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*', 'development/veyora-2.0.3-final-fixes', 'development/veyora-2.0.3-regression-recovery']
 concurrency:
