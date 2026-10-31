@@ -2,6 +2,9 @@ name: Windows review (no publication)
 on:
   workflow_dispatch:
   pull_request:
+concurrency:
+  group: windows-unit-review-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -9,6 +12,8 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -23,6 +28,8 @@ jobs:
           if (-not $bin) { throw 'FFmpeg installation did not supply ffmpeg.exe' }
           $env:GITHUB_PATH | Out-Null
           $bin.DirectoryName | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Fail fast on Python syntax errors
+        run: python -m compileall -q main.py desktop_ui.py translator tests
       - run: python -m pytest tests -q --junitxml=windows-tests.xml
       - run: python tools/gui_smoke.py --output gui-review.png
       - uses: actions/upload-artifact@v4
