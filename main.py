@@ -1680,7 +1680,17 @@ class VeyoraApp(ctk.CTk):
                 if getattr(card, '_visible_row', None) != index:
                     card.grid(row=index)
                     card._visible_row = index
-            self._update_download_card(task)
+            card = self.card_widgets[tid]
+            try:
+                self._update_download_card(task)
+                card._render_error_logged = False
+            except Exception as exc:
+                # One damaged task must not prevent the remaining playlist
+                # cards from updating; emit diagnostics only once per card.
+                if not getattr(card, '_render_error_logged', False):
+                    from runtime_support import log_failure
+                    log_failure(exc, context='render download card')
+                    card._render_error_logged = True
         if not hasattr(self, '_empty_download_label') or not self._empty_download_label.winfo_exists():
             self._empty_download_label = ctk.CTkLabel(self.downloads_scroll, text="No downloads in this category.")
         if tasks:

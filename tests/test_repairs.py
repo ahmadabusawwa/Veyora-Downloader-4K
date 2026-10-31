@@ -207,3 +207,36 @@ def test_large_playlist_refresh_does_not_regrid_unchanged_cards():
         main.VeyoraApp.render_download_items(app)
     assert app.create_download_card.call_count == 65
     assert all(card.grid.call_count == 0 for card in app.card_widgets.values())
+
+
+def test_bad_playlist_card_does_not_block_other_cards_or_flood_logs(monkeypatch):
+    import main
+    import runtime_support
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    tasks = [
+        dict(id="broken", title="broken", status="Failed", progress=0, error="oops"),
+        dict(id="working", title="working", status="Downloading", progress=.1),
+    ]
+    manager = Mock(TERMINAL=main.DownloadQueueManager.TERMINAL)
+    manager.get_tasks_by_status.return_value = tasks
+    app = SimpleNamespace(queue_manager=manager, active_filter="all",
+        card_widgets={}, _card_progress_bars={}, _card_info_labels={},
+        _card_title_labels={}, _card_buttons={}, _card_snapshots={},
+        status_label=Widget(), _empty_download_label=Widget())
+    app.create_download_card = lambda task, idx: app.card_widgets.setdefault(task["id"], Widget())
+    updated = []
+    def render(task):
+        updated.append(task["id"])
+        if task["id"] == "broken":
+            raise RuntimeError("bad source state")
+    app._update_download_card = render
+    logged = Mock()
+    monkeypatch.setattr(runtime_support, "log_failure", logged)
+
+    for _ in range(3):
+        main.VeyoraApp.render_download_items(app)
+
+    assert updated == ["broken", "working"] * 3
+    logged.assert_called_once()
