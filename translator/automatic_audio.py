@@ -46,7 +46,7 @@ def prefer_candidate(original,candidate):
     old,new=Counter(_words(original)),Counter(_words(candidate))
     if not new:return False
     # Do not replace recognizable words with a different confident hallucination.
-    if old and sum((old&new).values())/sum(old.values())<.95:return False
+    if old-new:return False
     # Repetition is especially hazardous in musical tails.
     if any(count>max(3,old[word]*2) for word,count in new.items()):return False
     if not original:return True

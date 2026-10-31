@@ -312,9 +312,10 @@ class DesktopApp(VeyoraApp):
             self.after(500, self._offer_download_recovery)
 
     def _offer_download_recovery(self):
-        if messagebox.askyesno(self.t('استعادة التحميلات', 'Recover downloads'),
-            self.t('توجد تحميلات غير مكتملة. هل تريد استئنافها؟ قد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.',
-                   'Resume previous unfinished downloads? Sources without range support or expired links may require a fresh transfer.'), parent=self):
+        title='استعادة التحميلات' if self.is_arabic else 'Recover downloads'
+        body=('توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.' if self.is_arabic else
+              'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.')
+        if messagebox.askyesno(title,body,parent=self):
             self.queue_manager.restore_previous()
             self.show_tab('Downloads')
 
@@ -839,7 +840,7 @@ class DesktopApp(VeyoraApp):
 
     def _set_active_nav(self, name):
         mapping = {
-            "Dashboard": ("video", "Dashboard"),
+            "Dashboard": ("audio" if hasattr(self,"mode_var") and self.mode_var.get()=="Audio (Extract)" else "video", "Dashboard"),
             "Downloads": ("video", "Downloads"),
             "Playlist": ("playlists", "Playlist"),
             "Translation": ("translation", "Translation"),
@@ -979,6 +980,7 @@ class DesktopApp(VeyoraApp):
             else:
                 self.extract_audio_switch.deselect()
         self.on_mode_change()
+        if self.active_tab=="Dashboard":self._set_active_nav("Dashboard")
 
     def on_mode_change(self, value=None):
         if not hasattr(self, "mode_var"):

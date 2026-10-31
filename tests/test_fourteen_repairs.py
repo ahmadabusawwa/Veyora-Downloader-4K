@@ -128,3 +128,85 @@ def test_actual_split_preserves_full_export_and_timeline(tmp_path):
     assert abs(float(get_ffprobe_info(parts[0])['format']['duration'])-2)<.2
     cue=parse_srt(Path(parts[1]).with_suffix('.srt'))[0]
     assert cue.start==0 and cue.end==.5
+
+
+def test_unsupported_detected_language_is_never_guessed_as_english(monkeypatch,tmp_path):
+    from translator import pipeline
+    from translator.exceptions import TranscriptionError
+    media=tmp_path/'spanish.mp4';media.write_bytes(b'identity')
+    monkeypatch.setattr(pipeline.TranslationPipeline,'_extract_speech',lambda *a:None)
+    monkeypatch.setattr(pipeline.TranslationPipeline,'_recognize',lambda *a:([S(start=0,end=2,text='Hola mundo')],S(language='es')))
+    with pytest.raises(TranscriptionError,match='not supported'):
+        pipeline.TranslationPipeline(media,tmp_path).run(source_lang='auto')
+    assert not list(tmp_path.glob('*.srt'))
+
+
+def test_invalid_user_data_is_preserved_before_saving_defaults(monkeypatch,tmp_path):
+    import main
+    for name,manager in [('settings',main.SettingsManager),('history',main.HistoryManager)]:
+        path=tmp_path/(name+'.json');original=b'not valid JSON \xff';path.write_bytes(original)
+        monkeypatch.setattr(main,name.upper()+'_FILE',path)
+        values=manager.load()
+        if name=='settings':manager.save(values)
+        else:manager.add(dict(title='New item'))
+        backups=list(tmp_path.glob(name+'.json.invalid-*.bak'))
+        assert len(backups)==1 and backups[0].read_bytes()==original
+        assert path.read_bytes()!=original
+
+
+def test_update_dispatch_never_calls_tk_directly_on_worker():
+    import threading,queue
+    from updater.ui import UpdateUI
+    dispatched=[];callback=lambda:dispatched.append(threading.get_ident())
+    ui=object.__new__(UpdateUI);ui.app=S(_ui_callbacks=queue.Queue())
+    worker=threading.Thread(target=lambda:ui.dispatch(callback));worker.start();worker.join()
+    assert not dispatched
+    ui.app._ui_callbacks.get_nowait()();assert dispatched==[threading.get_ident()]
+    ui.app=S();ui.dispatch(callback);assert len(dispatched)==1
+
+
+def test_late_metadata_for_changed_link_is_discarded(monkeypatch,tmp_path):
+    import main,json,time
+    from desktop_ui import DesktopApp
+    monkeypatch.setattr(main,'SETTINGS_FILE',tmp_path/'settings.json')
+    main.SETTINGS_FILE.write_text(json.dumps(dict(auto_update_check=False,ui_language='en')))
+    entered=threading.Event();release=threading.Event()
+    def fetch(*args):entered.set();release.wait(3);return dict(title='Stale old title',duration=5)
+    monkeypatch.setattr(main.DownloadEngine,'fetch_metadata',fetch)
+    app=DesktopApp()
+    try:
+        app._draft_url.set('https://example.com/old');app.analyze();assert entered.wait(1)
+        app._draft_url.set('https://example.com/new');release.set()
+        deadline=time.monotonic()+2
+        while app._metadata_busy and time.monotonic()<deadline:app.update();threading.Event().wait(.01)
+        assert not app._metadata_busy
+        assert 'Stale old title' not in app.preview_title.cget('text')
+        assert app.url_entry.get()=='https://example.com/new'
+    finally:release.set();app._on_close()
+
+
+@pytest.mark.parametrize('mode',['MOV','AVI'])
+def test_actual_additional_video_containers(tmp_path,mode):
+    from translator.video_renderer import run_ffmpeg,get_ffprobe_info
+    from local_tasks import run_local_job
+    source=tmp_path/'source.mp4'
+    run_ffmpeg(['-f','lavfi','-i','color=s=160x90:d=1','-f','lavfi','-i','sine=frequency=440:duration=1','-c:v','libx264','-threads','2','-c:a','aac',source])
+    result=run_local_job('Convert',source,tmp_path,'en','ar',mode,checkpoint=lambda:None,progress=lambda *a:None,save_original=False)
+    streams=get_ffprobe_info(result['video'])['streams']
+    assert {s['codec_type'] for s in streams}=={'video','audio'}
+    assert Path(result['video']).suffix=='.'+mode.lower()
+
+
+def test_audio_navigation_keeps_only_correct_sidebar_item_selected(monkeypatch):
+    import main
+    from desktop_ui import DesktopApp
+    monkeypatch.setitem(main.DEFAULT_SETTINGS,'auto_update_check',False)
+    app=DesktopApp()
+    try:
+        app.home_mode(True)
+        app.show_tab('Settings');app.show_tab('Dashboard')
+        assert app.mode_var.get()=='Audio (Extract)'
+        assert [key for key,button in app._sidebar_buttons.items() if getattr(button,'_veyora_selected',False)]==['audio']
+        app.set_mode('Video')
+        assert [key for key,button in app._sidebar_buttons.items() if getattr(button,'_veyora_selected',False)]==['video']
+    finally:app._on_close()

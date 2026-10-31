@@ -163,6 +163,8 @@ def quality_review(wave,folder):
         srt=folder/'style-ar.srt';srt.write_text('1\n00:00:00,000 --> 00:00:01,900\nمعاينة الترجمة العربية دون قص الحروف\n',encoding='utf8')
         burn_subtitles(video,srt,folder/'style-burn.mp4',style=style)
         report['style_preview_and_export']=True
+        if report.get('automatic_policy_regression_detected'):
+            raise RuntimeError('Automatic dialogue policy regressed against the original audio reference')
         if report.get('asr_regression_detected'):
             raise RuntimeError('ASR reference comparison detected a regression; do not deliver as accepted')
         if report.get('music_only_hallucination_detected'):

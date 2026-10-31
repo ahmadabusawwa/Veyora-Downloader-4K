@@ -180,7 +180,9 @@ class TranslationPipeline:
                 self._extract_speech(audio, checkpoint)
                 detected_segments, info = self._recognize(audio,'auto',checkpoint,progress)
                 detected = getattr(info, 'language', None)
-                if detected not in ('ar', 'en', 'tr', 'ko') and detected_segments:
+                # Never relabel a detected unsupported Latin language as English.
+                # Script inference is only a fallback when the recognizer has no language.
+                if not detected and detected_segments:
                     detected = detect_text_language(' '.join(s.text for s in detected_segments))
                 if detected not in ('ar', 'en', 'tr', 'ko'):
                     raise TranscriptionError('Detected speech language is not supported')

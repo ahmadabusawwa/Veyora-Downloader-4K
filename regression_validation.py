@@ -22,7 +22,7 @@ def run_regression_review(media,folder):
     c=app._local_task_controls
     app.show_tab('Dashboard')
     report=dict(ok=False,errors=[],scope='Real SAPI speech, actual installed app and Whisper/Argos/FFmpeg; customer clip is unavailable',cases=[])
-    state=dict(phase='language',index=0,deadline=time.monotonic()+180)
+    state=dict(phase='recovery',index=0,deadline=time.monotonic()+180)
     import functools,http.server
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self,*args):pass
@@ -65,10 +65,49 @@ def run_regression_review(media,folder):
                     return
                 time.sleep(.05)
         finally:missing_done.set()
+    def inspect_recovery_dialog():
+        from ctypes import wintypes
+        api=ctypes.WinDLL('user32',use_last_error=True)
+        api.FindWindowW.argtypes=[wintypes.LPCWSTR,wintypes.LPCWSTR];api.FindWindowW.restype=wintypes.HWND
+        api.GetDlgItem.argtypes=[wintypes.HWND,ctypes.c_int];api.GetDlgItem.restype=wintypes.HWND
+        api.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int];api.GetWindowTextW.restype=ctypes.c_int
+        api.SendMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM];api.SendMessageW.restype=ctypes.c_ssize_t
+        limit=time.monotonic()+8
+        while time.monotonic()<limit:
+            window=api.FindWindowW('#32770','استعادة التحميلات')
+            if window:
+                texts=[]
+                callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+                def read_child(child,unused):
+                    text=ctypes.create_unicode_buffer(4096);api.GetWindowTextW(child,text,4096)
+                    if text.value:texts.append(text.value)
+                    return True
+                callback=callback_type(read_child)
+                api.EnumChildWindows.argtypes=[wintypes.HWND,callback_type,wintypes.LPARAM];api.EnumChildWindows.restype=wintypes.BOOL
+                api.EnumChildWindows(window,callback,0)
+                report['recovery_dialog_text']='\n'.join(texts)
+                ImageGrab.grab().save(folder/'recovery-confirmation.png')
+                api.SendMessageW(api.GetDlgItem(window,7),0xF5,0,0)
+                return
+            time.sleep(.05)
+        report['recovery_dialog_text']='NOT FOUND'
+
     def poll():
         try:
             assert time.monotonic()<state['deadline'],'Native regression review timed out at '+state['phase']
-            if state['phase']=='language':
+            if state['phase']=='recovery':
+                threading.Thread(target=inspect_recovery_dialog,daemon=True,name='native-recovery-dialog-review').start()
+                app._offer_download_recovery()
+                text=report.get('recovery_dialog_text','')
+                assert 'توجد تحميلات' in text and not any('\ufb50'<=x<='\ufeff' for x in text),text
+                report['native_recovery_dialog_logical_arabic']='PASS'
+                app.home_mode(True);app.show_tab('Settings');app.show_tab('Dashboard')
+                assert [key for key,button in app._sidebar_buttons.items() if getattr(button,'_veyora_selected',False)]==['audio']
+                app.home_mode(False)
+                assert [key for key,button in app._sidebar_buttons.items() if getattr(button,'_veyora_selected',False)]==['video']
+                report['audio_video_sidebar_selection']='PASS'
+                state['phase']='language'
+            elif state['phase']=='language':
                 menu=app.source_menu;value=app._label_for_lang('auto');menu.set(value)
                 assert app._lang_code(app.source_var.get())=='auto'
                 assert menu._text_label.cget('text')==native_label(value)

@@ -6,7 +6,7 @@ import sys
 import threading
 
 
-SAFE_OUTPUT_SUFFIXES=frozenset(('.mp4','.mkv','.mov','.avi','.webm','.mp3','.wav','.m4a','.flac','.aac','.ogg','.opus','.srt','.vtt','.ass','.ssa','.txt','.log'))
+SAFE_OUTPUT_SUFFIXES=frozenset(('.flv','.wmv','.m4v','.mpeg','.mpg','.ts','.3gp','.sub','.sbv','.mp4','.mkv','.mov','.avi','.webm','.mp3','.wav','.m4a','.flac','.aac','.ogg','.opus','.srt','.vtt','.ass','.ssa','.txt','.log'))
 
 
 def validate_open_target(path,folder=False):

@@ -101,8 +101,10 @@ class UpdateUI:
     def dispatch(self, callback):
         try:
             self.app._ui_callbacks.put(callback)
-        except Exception:
-            callback()
+        except Exception as exc:
+            # A worker must never fall back to direct Tk calls, including shutdown.
+            from runtime_support import log_failure
+            log_failure(exc,'update UI dispatch')
 
     # -- check ------------------------------------------------------------
     def check(self, manual=True):

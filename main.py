@@ -167,19 +167,38 @@ ARABIC_FONT_TITLE = ("Segoe UI", 14, "bold")
 from download_sites import (SUPPORTED_PLATFORMS, POPULAR_SITES, detect_platform, is_valid_url,
     normalize_url, create_downloader, metadata_options, entry_page_url, friendly_download_error)
 
+def _read_preserving_invalid(path,expected_type,default):
+    """Retain invalid user bytes before defaults can ever be saved over them."""
+    if not path.exists():return default
+    try:
+        with path.open('r',encoding='utf-8-sig') as stream:value=json.load(stream)
+        if not isinstance(value,expected_type):raise ValueError('Unexpected user-data structure')
+        return value
+    except (ValueError,UnicodeError):
+        import shutil,hashlib
+        with path.open('rb') as incoming:digest=hashlib.file_digest(incoming,'sha256').hexdigest()
+        backup=path.with_name(path.name+'.invalid-'+digest+'.bak')
+        # Exclusive create and content identity avoid both overwriting a backup
+        # and an unbounded new backup on every History.load call.
+        try:
+            with backup.open('xb') as saved,path.open('rb') as incoming:shutil.copyfileobj(incoming,saved)
+        except FileExistsError:
+            pass
+        with backup.open('rb') as saved:
+            if hashlib.file_digest(saved,'sha256').hexdigest()!=digest:
+                raise RuntimeError('Could not preserve invalid user data; refusing defaults')
+        from runtime_support import log_failure
+        log_failure(ValueError('Invalid user-data JSON; original preserved as '+backup.name),'user-data recovery')
+        return default
+
+
 # --- SETTINGS MANAGER ---
 class SettingsManager:
     _lock = threading.RLock()
     @staticmethod
     def load():
-        if SETTINGS_FILE.exists():
-            try:
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return {**DEFAULT_SETTINGS, **data}
-            except Exception:
-                pass
-        return DEFAULT_SETTINGS.copy()
+        data=_read_preserving_invalid(SETTINGS_FILE,dict,{})
+        return {**DEFAULT_SETTINGS,**data}
 
     @staticmethod
     def save(settings):
@@ -195,14 +214,7 @@ class HistoryManager:
     _lock = threading.Lock()
     @staticmethod
     def load():
-        if HISTORY_FILE.exists():
-            try:
-                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    return data if isinstance(data, list) else []
-            except Exception:
-                pass
-        return []
+        return _read_preserving_invalid(HISTORY_FILE,list,[])
 
     @staticmethod
     def add(item):
@@ -2031,7 +2043,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
     if len(sys.argv)==4 and sys.argv[1]=='--review-regression-recovery':
         from regression_validation import run_regression_review
-        sys.exit(run_regression_review(*sys.argv[2:]))
+        sys.exit(_review_guard(run_regression_review,*sys.argv[2:]))
     if len(sys.argv)==5 and sys.argv[1]=='--review-close':
         from final_validation import run_close_review
         sys.exit(run_close_review(*sys.argv[2:]))
