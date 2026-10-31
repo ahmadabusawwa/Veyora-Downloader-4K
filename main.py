@@ -726,6 +726,9 @@ class DownloadQueueManager:
                     t['thumbnail'] = details['thumbnail']
                 state = data.get('status')
                 if state == 'downloading':
+                    # yt-dlp can run metadata/pre-process hooks before the media
+                    # transfer. The latest actual byte event owns this state.
+                    t['status'] = 'Downloading'
                     total = data.get('total_bytes') or data.get('total_bytes_estimate') or 0
                     if total:
                         t['filesize'] = total

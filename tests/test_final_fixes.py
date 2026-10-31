@@ -177,3 +177,22 @@ def test_confirmation_reuses_window_and_resolves_once(monkeypatch):
             app.update()
         assert accepted==list(range(20))
     finally:app._on_close()
+
+
+def test_network_progress_restores_download_state_after_preprocessing(monkeypatch,tmp_path):
+    import main,threading
+    entered=threading.Event();release=threading.Event()
+    def download(task,progress,complete,*args):
+        progress(task['id'],dict(status='finished'))
+        progress(task['id'],dict(status='downloading',downloaded_bytes=100,total_bytes=1000))
+        entered.set();release.wait(3)
+        complete(task['id'],False,'Test stopped')
+    monkeypatch.setattr(main.DownloadEngine,'download_task',download)
+    monkeypatch.setattr(main,'CONFIG_DIR',tmp_path)
+    manager=main.DownloadQueueManager(lambda:None)
+    try:
+        tid=manager.add_task('https://example.com/video.mp4',main.DEFAULT_SETTINGS)
+        assert entered.wait(3)
+        task=manager.get_tasks_by_status()[0]
+        assert task['id']==tid and task['status']=='Downloading' and task['progress']==.1
+    finally:release.set();manager.shutdown()

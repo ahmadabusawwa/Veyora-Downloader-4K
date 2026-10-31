@@ -157,7 +157,12 @@ def run_close_review(media,folder,kind):
                     state['yes']=True;app.request_close();return
                 state['phase']='active'
             elif state['phase']=='active':
-                if kind=='download':active=any(t['status']=='Downloading' and t['progress']>0 for t in app.queue_manager.get_tasks_by_status())
+                if kind=='download':
+                    current=app.queue_manager.get_tasks_by_status()
+                    report['last_download_tasks']=[{key:t.get(key) for key in ('id','status','progress','error','downloaded_file')} for t in current]
+                    active=any(t['status']=='Downloading' and t['progress']>0 for t in current)
+                    if current and all(t['status'] in app.queue_manager.TERMINAL for t in current):
+                        raise RuntimeError('Download ended before active-close test: '+str(report['last_download_tasks']))
                 else:
                     task=app.local_tasks.snapshot('Translation');active=task and task.stage.startswith('Recognizing')
                 if active:

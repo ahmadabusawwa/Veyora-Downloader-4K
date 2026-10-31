@@ -81,7 +81,10 @@ function Test-ActualClose([string]$kind) {
   $close=Get-Content -Raw -LiteralPath (Join-Path $closeDirectory 'close-results.json') | ConvertFrom-Json
   Write-Host ('CLOSE_REPORT: '+($close | ConvertTo-Json -Depth 8 -Compress))
   if ($p.ExitCode -ne 0 -or -not $close.ok) { throw ('Actual close review failed: '+$kind) }
- } finally { $env:VEYORA_CONFIG_DIR=$savedConfig }
+ } finally {
+  if (Test-Path (Join-Path $isolated 'logs')) { Copy-Item (Join-Path $isolated 'logs') (Join-Path $closeDirectory 'runtime-logs') -Recurse -Force }
+  $env:VEYORA_CONFIG_DIR=$savedConfig
+ }
 }
 Test-ActualClose 'idle'
 Test-ActualClose 'download'
