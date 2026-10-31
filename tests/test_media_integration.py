@@ -77,26 +77,55 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
     run_ffmpeg(['-f','lavfi','-i','testsrc2=s=640x360:r=15:d=4','-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',valid])
     payload = valid.read_bytes()
     ranges = []
+    head_requests = []
     class Media(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
-        def do_GET(self):
-            start = int(self.headers.get('Range', 'bytes=0-').split('=')[1].split('-')[0])
-            ranges.append(start)
-            self.send_response(206 if start else 200)
+
+        def do_HEAD(self):
+            # yt-dlp's Generic extractor probes content types before deciding
+            # whether a URL can be downloaded directly.
+            head_requests.append(self.path)
+            self.send_response(200)
             self.send_header('Content-Type', 'video/mp4')
-            self.send_header('Content-Length', str(len(payload) - start))
+            self.send_header('Content-Length', str(len(payload)))
             self.send_header('Accept-Ranges', 'bytes')
-            if start:
-                self.send_header('Content-Range', f'bytes {start}-{len(payload)-1}/{len(payload)}')
+            self.end_headers()
+
+        def do_GET(self):
+            import re
+            requested = self.headers.get('Range')
+            start, end = 0, len(payload) - 1
+            if requested:
+                match = re.fullmatch(r'bytes=(\\d*)-(\\d*)', requested)
+                if not match or not any(match.groups()):
+                    self.send_error(416, 'Malformed byte range')
+                    return
+                first, last = match.groups()
+                if first:
+                    start = int(first)
+                    end = min(int(last), end) if last else end
+                else:
+                    start = max(0, len(payload) - int(last))
+                if start > end or start >= len(payload):
+                    self.send_response(416)
+                    self.send_header('Content-Range', f'bytes */{len(payload)}')
+                    self.end_headers()
+                    return
+            ranges.append(start)
+            self.send_response(206 if requested else 200)
+            self.send_header('Content-Type', 'video/mp4')
+            self.send_header('Content-Length', str(end - start + 1))
+            self.send_header('Accept-Ranges', 'bytes')
+            if requested:
+                self.send_header('Content-Range', f'bytes {start}-{end}/{len(payload)}')
             self.end_headers()
             try:
-                for i in range(start, len(payload), 16384):
-                    self.wfile.write(payload[i:i + 16384])
+                for i in range(start, end + 1, 16384):
+                    self.wfile.write(payload[i:min(i + 16384, end + 1)])
                     self.wfile.flush()
-                    # The application's UI progress is throttled to 200 ms.
-                    # Keep this real transfer longer than one update so pause
-                    # occurs before EOF on fast Windows workers as well.
+                    # Keep the actual file transfer slow enough to permit the
+                    # application to pause before the network transfer finishes.
                     time.sleep(.02)
             except (BrokenPipeError, ConnectionResetError):
                 pass
@@ -118,7 +147,7 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
         args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
     try:
         thread.start()
-        assert paused.wait(10), {'result': result, 'ranges': list(ranges), 'events': events[-30:], 'alive': thread.is_alive(), 'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]}
+        assert paused.wait(10), {'result': result, 'ranges': list(ranges), 'head_requests': list(head_requests), 'events': events[-30:], 'alive': thread.is_alive(), 'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]}
         time.sleep(.15)
         assert thread.is_alive() and not result
         cancel.set()  # cancelling a paused worker must unblock it
@@ -128,12 +157,13 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
         assert parts and 0 < parts[0].stat().st_size < len(payload)
         pause.clear()
         cancel.clear()
+        requests_before_resume = len(ranges)
         resumed = []
         main.DownloadEngine.download_task(task, lambda *_: None, lambda *a: resumed.append(a),
             pause, cancel, str(tmp_path))
         assert resumed[0][1], resumed
         assert Path(task['downloaded_file']).read_bytes() == payload
-        assert any(start > 0 for start in ranges), ranges
+        assert any(start > 0 for start in ranges[requests_before_resume:]), ranges
     finally:
         cancel.set()
         thread.join(10)
