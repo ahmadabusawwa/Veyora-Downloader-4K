@@ -97,7 +97,7 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
             requested = self.headers.get('Range')
             start, end = 0, len(payload) - 1
             if requested:
-                match = re.fullmatch(r'bytes=(\\d*)-(\\d*)', requested)
+                match = re.fullmatch(r'bytes=(\d*)-(\d*)', requested)
                 if not match or not any(match.groups()):
                     self.send_error(416, 'Malformed byte range')
                     return
