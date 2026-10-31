@@ -229,3 +229,28 @@ def test_srt_with_association_keeps_the_users_default_app(monkeypatch,tmp_path):
     monkeypatch.setattr(output_actions.os,'startfile',lambda value:calls.append(value),raising=False)
     output_actions.open_windows_file(file)
     assert calls==[str(file)]
+
+
+def test_failed_reanalysis_clears_previous_video_metadata_and_thumbnail(monkeypatch, tmp_path):
+    """A failed repeat lookup must not keep previously successful video details."""
+    import main
+    from desktop_ui import DesktopApp
+    monkeypatch.setenv('VEYORA_CONFIG_DIR', str(tmp_path))
+    monkeypatch.setattr(main, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setitem(main.DEFAULT_SETTINGS, 'auto_update_check', False)
+    app = DesktopApp()
+    try:
+        app.show_tab('Dashboard')
+        app.show_preview({'title':'Previous video','resolution':'2160p',
+                          'duration':120,'platform':'Example video'})
+        assert app.badge_4k.cget('text') == '2160p'
+        previous_sequence = app._preview_thumbnail_seq
+        app.show_preview({'error':'Metadata request failed'})
+        assert app._preview_thumbnail_seq == previous_sequence + 1
+        assert app.badge_4k.cget('text') == '—'
+        assert app.badge_hdr.cget('text') == '—'
+        assert app.badge_fps.cget('text') == '—'
+        assert app.preview_image.cget('image') is app._default_preview_ctk
+        assert 'Metadata request failed' in app.preview_meta.cget('text')
+    finally:
+        app._on_close()

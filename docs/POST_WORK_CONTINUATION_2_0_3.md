@@ -38,3 +38,7 @@ Do not merge PR #3, publish a Release, or call Setup production-ready until the 
 ## Confirmed additional defect fixed: thumbnail fan-out
 
 When two UI consumers requested the same thumbnail concurrently, `thumbnail_cache.request` coalesced callbacks but invoked them without exception isolation. A destroyed/throwing first consumer prevented the second from receiving the thumbnail; the worker also logged an uncaught exception. Each callback is now guarded and separately logged. A deterministic regression test queues two subscribers, makes the first throw, and asserts delivery to the second. This is a correctness fix; no speed optimization or new feature was introduced.
+
+## Confirmed additional defect fixed: stale metadata after failed repeat analysis
+
+The Dashboard's `show_preview` failure branch previously updated only the title/error line, leaving the last successful resolution, HDR/FPS, and thumbnail displayed. A repeat analysis of the same URL could also accept a previously scheduled thumbnail because the draft URL revision did not change. The failure path now clears metadata and images before presenting the error, and a monotonically increasing thumbnail generation rejects stale image callbacks even on same-URL reanalysis. A GUI regression test checks the failure reset. This does not change download or translation behavior.

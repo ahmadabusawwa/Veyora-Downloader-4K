@@ -2187,7 +2187,12 @@ class DesktopApp(VeyoraApp):
         if self.active_tab != "Dashboard":
             self._pending_preview = info
             return
+        # A second lookup of the same URL must invalidate older image jobs,
+        # even if the URL's draft revision did not change.
+        self._preview_thumbnail_seq = getattr(self, '_preview_thumbnail_seq', 0) + 1
+        thumbnail_seq = self._preview_thumbnail_seq
         if not info or info.get("error"):
+            self._clear_preview()
             self.preview_title.configure(text=self.t("تعذر تحليل الرابط", "Could not analyze the link"))
             self.preview_meta.configure(text=str((info or {}).get("error", ""))[:300])
             self.video_info.configure(text=self.t("لا توجد معلومات متاحة", "No information available"))
@@ -2245,7 +2250,7 @@ class DesktopApp(VeyoraApp):
                     image.thumbnail((500, 280))
                     image = image.copy()
                     self._ui_callbacks.put(
-                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" and preview_revision==self._draft_revision else None
+                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" and preview_revision==self._draft_revision and thumbnail_seq==self._preview_thumbnail_seq else None
                     )
                 except Exception:
                     pass
