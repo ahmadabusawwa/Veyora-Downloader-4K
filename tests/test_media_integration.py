@@ -171,7 +171,17 @@ def test_actual_download_cancel_resume_uses_range(tmp_path, monkeypatch):
         args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
     try:
         thread.start()
-        assert paused.wait(10), {'result': result, 'ranges': list(ranges), 'head_requests': list(head_requests), 'events': events[-30:], 'alive': thread.is_alive(), 'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]}
+        if not paused.wait(12):
+            # Preserve the true blocked stack. HTTP events alone only tell us
+            # whether the request reached the server, not where yt-dlp stopped.
+            import sys, traceback
+            frame = sys._current_frames().get(thread.ident)
+            stack = ''.join(traceback.format_stack(frame)) if frame is not None else '<no live worker frame>'
+            raise AssertionError({
+                'result': result, 'ranges': list(ranges),
+                'head_requests': list(head_requests), 'events': events[-30:],
+                'alive': thread.is_alive(), 'worker_stack': stack,
+                'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]})
         time.sleep(.15)
         assert thread.is_alive() and not result
         cancel.set()  # cancelling a paused worker must unblock it
