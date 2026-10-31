@@ -1975,13 +1975,17 @@ def packaged_self_test(report_path):
 
 
 def _review_guard(function,*args):
-    try:return function(*args)
-    except Exception:
-        import traceback
-        directory=Path(args[2] if len(args)==3 else args[1])
-        directory.mkdir(parents=True,exist_ok=True)
-        (directory/'review-crash.json').write_text(json.dumps(dict(error=traceback.format_exc()),ensure_ascii=True,indent=2),encoding='utf8')
-        return 1
+    import faulthandler
+    directory=Path(args[2] if len(args)==3 else args[1])
+    directory.mkdir(parents=True,exist_ok=True)
+    with (directory/'native-crash.log').open('w',encoding='utf8') as crash_log:
+        faulthandler.enable(file=crash_log,all_threads=True)
+        try:return function(*args)
+        except Exception:
+            import traceback
+            (directory/'review-crash.json').write_text(json.dumps(dict(error=traceback.format_exc()),ensure_ascii=True,indent=2),encoding='utf8')
+            return 1
+        finally:faulthandler.disable()
 
 
 if __name__ == "__main__":
