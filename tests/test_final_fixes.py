@@ -152,3 +152,25 @@ def test_close_confirmation_no_keeps_running_task(monkeypatch,tmp_path):
         controls['no'].invoke()
         assert app.local_tasks.busy and not app.local_tasks.closed
     finally:app._on_close()
+
+
+def test_confirmation_reuses_window_and_resolves_once(monkeypatch):
+    import main
+    from desktop_ui import DesktopApp
+    from confirmation import confirm
+    monkeypatch.setitem(main.DEFAULT_SETTINGS,'auto_update_check',False)
+    app=DesktopApp();accepted=[]
+    try:
+        first=None;binding=None
+        for index in range(20):
+            controls=confirm(app,'تأكيد','Confirm','تجربة','Test',lambda i=index:accepted.append(i))
+            if first is None:
+                first=controls['window'];binding=app.bind_all('<Button-1>')
+            assert controls['window'] is first
+            assert app.bind_all('<Button-1>')==binding
+            controls['yes'].invoke();controls['yes'].invoke()
+            assert app._confirm_controls is None
+            assert first.winfo_exists()
+            app.update()
+        assert accepted==list(range(20))
+    finally:app._on_close()

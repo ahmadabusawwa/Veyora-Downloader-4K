@@ -33,6 +33,8 @@ if ($LASTEXITCODE) { throw 'Dependencies failed' }
 $env:PATH="$env:VEYORA_FFMPEG_DIR;$env:PATH"
 & $python -m pytest tests -q --junitxml=windows-tests.xml
 if ($LASTEXITCODE) { throw 'Tests failed' }
+& $python tools/confirmation_lifecycle_review.py
+if ($LASTEXITCODE) { throw 'Actual confirmation lifecycle test failed' }
 & $python -m PyInstaller --noconfirm --clean packaging/Veyora-Pro.spec
 if ($LASTEXITCODE) { throw 'Packaging failed' }
 $iscc=Get-Command ISCC.exe -ErrorAction SilentlyContinue

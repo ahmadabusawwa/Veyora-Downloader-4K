@@ -99,6 +99,8 @@ jobs:
             dist/*Test-Report.md
             dist/*File-Verification.json
             dist/actual-test-results.json
+            dist/confirmation-lifecycle*/**
+            dist/confirmation-lifecycle-results.json
             windows-tests.xml
             installed-translation.json
             real-video-review/**
