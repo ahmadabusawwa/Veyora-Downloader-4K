@@ -197,3 +197,25 @@ def test_sign_and_verify_update_end_to_end(monkeypatch, tmp_path):
     installer.write_bytes(b"INERT INSTALLER PAYLOAD FOR SIGNATURE VERIFICATION")
     assert sign_update.main([str(installer), "--key", str(priv_key), "--key-id", "test-2026", "--tag", "v2.0.0"]) == 0
     assert sign_update.main([str(installer), "--tag", "v2.0.0", "--verify"]) == 0
+
+
+def test_failed_download_card_shows_error_and_log_action():
+    """A failed item must never abort the entire Downloads render."""
+    app = DesktopApp()
+    try:
+        app.show_tab("Downloads")
+        task = {
+            "id": "failed-card-regression",
+            "title": "Video with an error",
+            "status": "Failed",
+            "progress": 0,
+            "settings": {"quality": "1080p", "format": "MP4", "download_subs": False},
+            "error": "تحقق من بداية القص ونهايته",
+        }
+        app.create_download_card(task, 0)
+        app._update_download_card(task)
+        assert app._card_info_labels[task["id"]].cget("text") == task["error"]
+        assert app._card_buttons[task["id"]]["errorlog"].winfo_manager() == "pack"
+        assert app._card_buttons[task["id"]]["retry"].winfo_manager() == "pack"
+    finally:
+        app._on_close()

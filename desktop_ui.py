@@ -2545,6 +2545,9 @@ class DesktopApp(VeyoraApp):
             "show": (self.t('فتح الموقع','Open folder'), lambda: self._open_download_output(tid,'folder')),
             "play": (self.t('تشغيل الملف النهائي','Play final output'), lambda: self._open_download_output(tid)),
             "subtitle": (self.t('فتح ملف الترجمة','Open SRT'), lambda: self._open_download_output(tid,'subtitle')),
+            # Failed-card actions must exist: an absent entry previously raised
+            # KeyError and aborted rendering the entire download list.
+            "errorlog": (self.t('سجل الخطأ','Error log'), self._open_error_log),
         }
         self.card_widgets[tid] = card
         self._card_title_labels[tid] = title

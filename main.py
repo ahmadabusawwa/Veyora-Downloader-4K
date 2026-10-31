@@ -153,8 +153,7 @@ def fix_arabic_text(text):
             display = get_display(reshaped)
             return display
         else:
-            for ext in ['.mp4', '.mkv', '.mov', '.webm', '.mp3', '.m4a', '.srt', '.vtt', '.avi', '.flv']:
-                text = text.replace(ext, '')
+            # A missing display dependency must never corrupt media titles.
             return text
     except Exception:
         return text
