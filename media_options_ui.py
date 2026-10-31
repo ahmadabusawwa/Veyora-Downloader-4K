@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from tkinter import colorchooser
 import customtkinter as ctk
-from ui_controls import OptionMenu
+from ui_controls import CodedOptionMenu
 from PIL import Image,ImageOps
 from translator.subtitle_style import DEFAULT,normalize_style
 
@@ -14,14 +14,18 @@ def subtitle_options(app,path):
     previous=getattr(app,'_subtitle_options_window',None)
     if previous is not None and previous.winfo_exists():previous.lift();return
     window=app._subtitle_options_window=ctk.CTkToplevel(app)
-    window.title(app.t('محرّر مظهر الترجمة','Subtitle appearance editor'))
-    window.geometry('1080x700');window.minsize(860,580);window.configure(fg_color=app.c['bg']);window.transient(app)
+    window.title('محرّر مظهر الترجمة' if app.is_arabic else 'Subtitle appearance editor')
+    scale=window._get_window_scaling()
+    screen_width=int(window.winfo_screenwidth()/scale);screen_height=int(window.winfo_screenheight()/scale)
+    width=min(1080,max(320,screen_width-40));height=min(700,max(320,screen_height-120))
+    window.geometry(f'{width}x{height}+{max(0,(screen_width-width)//2)}+{max(0,(screen_height-height-80)//2)}')
+    window.minsize(min(860,width),min(580,height));window.configure(fg_color=app.c['bg']);window.transient(app)
     window.grid_columnconfigure(1,weight=1);window.grid_rowconfigure(0,weight=1)
-    left=ctk.CTkFrame(window,fg_color=app.c['panel']);left.grid(row=0,column=0,sticky='ns',padx=14,pady=14)
+    left=ctk.CTkScrollableFrame(window,width=246,fg_color=app.c['panel']);left.grid(row=0,column=0,sticky='ns',padx=14,pady=14)
     right=ctk.CTkFrame(window,fg_color=app.c['panel2'],border_width=1,border_color=app.c['edge']);right.grid(row=0,column=1,sticky='nsew',padx=(0,14),pady=14)
     right.grid_columnconfigure(0,weight=1);right.grid_rowconfigure(1,weight=1)
     ctk.CTkLabel(right,text=app.t('معاينة حية من الفيديو','Live video preview'),font=('Segoe UI',17,'bold')).grid(row=0,column=0,pady=12)
-    preview=ctk.CTkLabel(right,text=app.t('جارٍ تجهيز المعاينة…','Preparing preview…'),fg_color='#080d14',corner_radius=8)
+    preview=ctk.CTkLabel(right,width=1,height=1,text=app.t('جارٍ تجهيز المعاينة…','Preparing preview…'),fg_color='#080d14',corner_radius=8)
     preview.grid(row=1,column=0,sticky='nsew',padx=12,pady=8)
     status=ctk.CTkLabel(right,text='',wraplength=620,anchor=app._anchor());status.grid(row=2,column=0,padx=12,pady=12,sticky='ew')
     try:style=normalize_style(app.settings.get('subtitle_style'))
@@ -34,6 +38,11 @@ def subtitle_options(app,path):
         entry=ctk.CTkEntry(field,textvariable=variables[key],width=55);entry.pack(side='right',padx=4)
         slider=ctk.CTkSlider(field,from_=low,to=high,number_of_steps=int((high-low)*10),width=160,command=lambda value,key=key:variables[key].set(f'{value:.1f}'))
         slider.set(float(style[key]));slider.pack(side='left',padx=4);sliders.append(slider)
+        def sync_slider(*_,key=key,slider=slider,low=low,high=high):
+            try:value=float(variables[key].get())
+            except ValueError:return
+            if low<=value<=high:slider.set(value)
+        variables[key].trace_add('write',sync_slider)
     ctk.CTkLabel(left,text=app.t('لون الخط','Font color')).grid(row=6,column=0,pady=(16,4))
     ctk.CTkEntry(left,textvariable=variables['color'],width=180).grid(row=7,column=0,padx=12)
     def choose_color():
@@ -44,8 +53,20 @@ def subtitle_options(app,path):
     app.ghost_button(left,app.t('اختيار اللون','Choose color'),choose_color).grid(row=8,column=0,pady=6)
     ctk.CTkLabel(left,text=app.t('موضع الترجمة','Subtitle position')).grid(row=9,column=0,pady=(12,4))
     positions={'bottom':app.t('أسفل الفيديو','Bottom'),'top':app.t('أعلى الفيديو','Top')}
-    shown=ctk.StringVar(value=positions[style['position']]);reverse={v:k for k,v in positions.items()}
-    OptionMenu(left,variable=shown,values=list(positions.values()),command=lambda value:variables['position'].set(reverse[value])).grid(row=10,column=0,padx=12)
+    window._position_menu=CodedOptionMenu(left,variable=variables['position'],labels=positions)
+    window._position_menu.grid(row=10,column=0,padx=12)
+    window._style_sliders=sliders
+    displayed_size=[None]
+    def fit_preview(event=None):
+        source=getattr(window,'_preview_source',None)
+        if source is None:return
+        available=(max(1,min(700,preview.winfo_width()-24)),max(1,min(440,preview.winfo_height()-24)))
+        if available==displayed_size[0]:return
+        displayed_size[0]=available
+        image=ImageOps.contain(source,available)
+        window._preview_image=ctk.CTkImage(image,size=image.size)
+        preview.configure(image=window._preview_image,text='')
+    preview.bind('<Configure>',fit_preview,add='+')
     changed=threading.Event();requests=queue.Queue(maxsize=1);pending=[None];revision=[0];worker=[None];trace_id=[None]
     def checkpoint():
         if changed.is_set() or app.local_tasks.closed:raise RuntimeError('Cancelled by user')
@@ -62,9 +83,8 @@ def subtitle_options(app,path):
                     with Image.open(output) as img:image=img.copy()
                 def done(token=token,image=image,media=media):
                     if changed.is_set() or token!=revision[0]:return
-                    image=ImageOps.contain(image,(700,440))
-                    window._preview_image=ctk.CTkImage(image,size=image.size)
-                    preview.configure(image=window._preview_image,text='')
+                    window._preview_source=image
+                    displayed_size[0]=None;fit_preview()
                     window._preview_revision=token
                     status.configure(text=app.t('إطار من الفيديو بإعدادات التصدير نفسها.','Video frame with the export styling.') if media else app.t('خلفية تجريبية؛ اختر فيديو لمعاينته.','Sample background; select a video to preview it.'))
                 app._ui_callbacks.put(done)

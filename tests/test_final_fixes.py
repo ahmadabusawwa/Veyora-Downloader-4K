@@ -91,9 +91,13 @@ def test_completed_output_and_subtitle_survive_restart(monkeypatch,tmp_path):
 
 def test_live_preview_updates_without_pressing_refresh(monkeypatch,tmp_path):
     import main
+    import customtkinter as ctk
     from desktop_ui import DesktopApp
     from media_options_ui import subtitle_options
     monkeypatch.setitem(main.DEFAULT_SETTINGS,'auto_update_check',False)
+    for kind in (DesktopApp,ctk.CTkToplevel):
+        monkeypatch.setattr(kind,'winfo_screenwidth',lambda self:1024)
+        monkeypatch.setattr(kind,'winfo_screenheight',lambda self:768)
     app=DesktopApp();app.show_tab('Translation')
     subtitle_options(app,app._local_task_controls['path']);window=app._subtitle_options_window
     state={'phase':0,'first':None};errors=[];deadline=time.monotonic()+12
@@ -101,9 +105,15 @@ def test_live_preview_updates_without_pressing_refresh(monkeypatch,tmp_path):
         try:
             assert time.monotonic()<deadline
             if state['phase']==0 and window._preview_revision:
+                dimensions=window.geometry().split('+')
+                width,height=map(int,dimensions[0].split('x'))
+                assert width+int(dimensions[1])<=1024 and height+int(dimensions[2])+40<=728
                 state['first']=window._preview_image.cget('light_image').tobytes()
                 state['revision']=window._preview_revision
                 window._style_controls['color'].set('#FFFF00');window._style_controls['size_percent'].set('6')
+                window._style_controls['position'].set('top')
+                assert window._position_menu.get()==app.t('أعلى الفيديو','Top')
+                assert window._style_sliders[0].get()==6
                 state['phase']=1
             elif state['phase']==1 and window._preview_revision>state['revision']:
                 assert window._preview_image.cget('light_image').tobytes()!=state['first']

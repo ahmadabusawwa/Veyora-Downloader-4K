@@ -300,8 +300,11 @@ class DesktopApp(VeyoraApp):
         self._syncing_controls = False
         super().__init__()
         self.title(f"Veyora Pro {APP_VERSION} — Downloader & Translator")
-        self.geometry(f"{min(1536,max(1000,self.winfo_screenwidth()-60))}x{min(980,max(600,self.winfo_screenheight()-100))}")
-        self.minsize(1000,600)
+        scale=self._get_window_scaling()
+        screen_width=int(self.winfo_screenwidth()/scale);screen_height=int(self.winfo_screenheight()/scale)
+        width=min(1536,max(320,screen_width-48));height=min(980,max(320,screen_height-120))
+        self.geometry(f'{width}x{height}+{max(0,(screen_width-width)//2)}+{max(0,(screen_height-height-80)//2)}')
+        self.minsize(min(1000,width),min(600,height))
         self.configure(fg_color=self.c["bg"])
         self._start_status_clock()
         self.protocol("WM_DELETE_WINDOW",self.request_close)
