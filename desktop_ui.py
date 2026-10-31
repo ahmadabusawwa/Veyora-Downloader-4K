@@ -312,12 +312,20 @@ class DesktopApp(VeyoraApp):
             self.after(500, self._offer_download_recovery)
 
     def _offer_download_recovery(self):
-        title='استعادة التحميلات' if self.is_arabic else 'Recover downloads'
-        body=('توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.' if self.is_arabic else
-              'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.')
-        if messagebox.askyesno(title,body,parent=self):
+        # Use the application's own Arabic-capable confirmation instead of a
+        # native Windows MessageBox, whose text direction is not controlled by Tk.
+        from confirmation import confirm
+
+        def resume():
             self.queue_manager.restore_previous()
             self.show_tab('Downloads')
+
+        return confirm(
+            self, 'استعادة التحميلات', 'Recover downloads',
+            'توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.',
+            'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.',
+            resume,
+        )
 
 
     # ------------------------------------------------------------------
