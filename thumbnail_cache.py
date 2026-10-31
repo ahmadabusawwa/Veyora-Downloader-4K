@@ -1,5 +1,6 @@
 """Bounded disk thumbnail cache; decoded images returned on a worker."""
 import hashlib
+import logging
 import io
 import os
 from pathlib import Path
@@ -69,5 +70,10 @@ def request(url, root, done):
         with _lock:
             callbacks = _inflight.pop(key, [])
         for callback in callbacks:
-            callback(result)
+            try:
+                callback(result)
+            except Exception:
+                # One disposed or broken UI consumer must not starve other
+                # windows waiting for the same thumbnail result.
+                logging.getLogger(__name__).exception('Thumbnail consumer callback failed')
     _pool.submit(work)
