@@ -44,6 +44,17 @@ from ui_icons import icon
 from runtime_support import LatestProgress, friendly_error
 
 
+def normalize_clip_time(value):
+    """Return a canonical HH:MM:SS for the clip fields; reject invalid input."""
+    from media_clipping import time_seconds
+    seconds = time_seconds(value)
+    if not seconds.is_integer():
+        raise ValueError("Use whole seconds in the clip time fields")
+    hours, remaining = divmod(int(seconds), 3600)
+    minutes, seconds = divmod(remaining, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 # ---------------------------------------------------------------------------
 # Design tokens matching the Veyora Pro 2.0 reference interface
 # ---------------------------------------------------------------------------
@@ -1763,6 +1774,7 @@ class DesktopApp(VeyoraApp):
             height=30,
             fg_color=self.c["panel2"],
             border_color=self.c["edge"],
+            border_width=2,
             text_color=self.c["text"],
             justify="center",
             font=("Segoe UI", 11),
@@ -1783,11 +1795,21 @@ class DesktopApp(VeyoraApp):
             height=30,
             fg_color=self.c["panel2"],
             border_color=self.c["edge"],
+            border_width=2,
             text_color=self.c["text"],
             justify="center",
             font=("Segoe UI", 11),
         )
         self.clip_end_entry.grid(row=0, column=2, sticky="ew")
+        for field, variable in ((self.clip_start_entry, self.clip_start_var),
+                                (self.clip_end_entry, self.clip_end_var)):
+            self._bind_clip_time_field(field, variable)
+        ctk.CTkLabel(
+            clip_row,
+            text=self.t("الوقت: ساعات : دقائق : ثوانٍ", "Time: Hours : Minutes : Seconds"),
+            text_color=self.c["muted"],
+            font=("Segoe UI", 10),
+        ).grid(row=1, column=0, columnspan=3, pady=(3, 0))
 
         # Primary CTA button
         self.button(
@@ -1798,6 +1820,35 @@ class DesktopApp(VeyoraApp):
             corner_radius=10,
             font=("Segoe UI", 14, "bold"),
         ).grid(row=4, column=0, padx=14, pady=(4, 10), sticky="ew")
+
+    def _bind_clip_time_field(self, field, variable):
+        """Highlight focused clip time and select just the clicked HH/MM/SS part."""
+        normal = self.c["edge"]
+        yellow = "#FACC15"
+
+        def focused(_event):
+            field.configure(border_color=yellow)
+
+        def unfocused(_event):
+            try:
+                variable.set(normalize_clip_time(variable.get()))
+            except ValueError:
+                field.configure(border_color=self.c["bad"])
+            else:
+                field.configure(border_color=normal)
+
+        def select_segment(event):
+            widget = event.widget
+            value = widget.get()
+            if len(value) != 8 or value[2] != ":" or value[5] != ":":
+                return
+            index = widget.index("insert")
+            start, end = (0, 2) if index <= 2 else ((3, 5) if index <= 5 else (6, 8))
+            widget.after_idle(lambda: (widget.selection_range(start, end), widget.icursor(end)))
+
+        field.bind("<FocusIn>", focused, add="+")
+        field.bind("<FocusOut>", unfocused, add="+")
+        field.bind("<ButtonRelease-1>", select_segment, add="+")
 
     def _switch_row(self, parent, row, text, variable, command):
         line = ctk.CTkFrame(parent, fg_color="transparent")
@@ -1912,6 +1963,12 @@ class DesktopApp(VeyoraApp):
         SettingsManager.save(self.settings)
         self._update_translation_hint()
 
+    def _pause_all_downloads(self):
+        self.queue_manager.pause_all()
+
+    def _resume_all_downloads(self):
+        self.queue_manager.resume_all()
+
     def _build_queue(self, parent):
         panel = self.card(parent)
         self.queue_panel = panel
@@ -1942,6 +1999,14 @@ class DesktopApp(VeyoraApp):
         right_bar.grid(row=0, column=2, sticky="e")
 
         self.ghost_button(
+            right_bar, self.t("⏸ إيقاف الكل", "⏸ Pause all"),
+            self._pause_all_downloads, width=92, height=28,
+        ).grid(row=0, column=0, padx=3)
+        self.ghost_button(
+            right_bar, self.t("▶ استئناف الكل", "▶ Resume all"),
+            self._resume_all_downloads, width=100, height=28,
+        ).grid(row=0, column=1, padx=3)
+        self.ghost_button(
             right_bar,
             "🗑  " + self.t("مسح الكل", "Clear completed"),
             self.clear_completed,
@@ -1952,11 +2017,11 @@ class DesktopApp(VeyoraApp):
             width=104,
             height=28,
             font=("Segoe UI", 11),
-        ).grid(row=0, column=0, padx=(0, 8))
+        ).grid(row=0, column=2, padx=(0, 8))
 
         self.filter_buttons = {}
         filters = ctk.CTkFrame(right_bar, fg_color="transparent")
-        filters.grid(row=0, column=1, sticky="e")
+        filters.grid(row=0, column=3, sticky="e")
         # Order matching reference UI: فاشل | مكتمل | جاري | الكل
         display_filters = list(reversed(FILTERS))
         for column, (value, ar, en) in enumerate(display_filters):
@@ -2298,6 +2363,21 @@ class DesktopApp(VeyoraApp):
             self._dashboard_dirty = False
 
     def start_download_action(self):
+        if hasattr(self, "clip_var") and self.clip_var.get():
+            from media_clipping import clip_interval
+            try:
+                start = normalize_clip_time(self.clip_start_var.get())
+                end = normalize_clip_time(self.clip_end_var.get())
+                clip_interval(start, end)
+            except ValueError:
+                self.notify(
+                    "وقت القص غير صالح. استخدم ساعات:دقائق:ثوانٍ وتأكد أن النهاية بعد البداية.",
+                    "Invalid clip time. Use HH:MM:SS and ensure the end is after the start.",
+                    kind="warning",
+                )
+                return
+            self.clip_start_var.set(start)
+            self.clip_end_var.set(end)
         self._prepare_dashboard_settings()
         super().start_download_action()
 
@@ -2432,8 +2512,8 @@ class DesktopApp(VeyoraApp):
         info = ctk.CTkLabel(
             prog_col,
             text="",
-            anchor="w",
-            justify="left",
+            anchor="e" if self.is_arabic else "w",
+            justify="right" if self.is_arabic else "left",
             text_color=colors["muted"],
             font=("Segoe UI", 10),
             wraplength=420,
@@ -2554,8 +2634,9 @@ class DesktopApp(VeyoraApp):
             shown_title=self.t("جارٍ قراءة بيانات الفيديو…","Resolving…") if title in ("Resolving...","Resolving…") else title
             self._card_title_labels[tid].configure(text=shown_title)
         if text != old.get("text"):
-            # Shape Arabic exactly once, after assembling the full mixed-language line.
-            self._card_info_labels[tid].configure(text=fix_arabic_text(text) if self.is_arabic else text)
+            # CTkLabel is backed by a native Tk label: do not pre-reorder RTL text.
+            # Errors can be Arabic even while the application UI is in English.
+            self._card_info_labels[tid].configure(text=text)
         if progress != old.get("progress"):
             self._card_progress_bars[tid].set(progress)
             if tid in self._card_percent_labels:
@@ -2682,6 +2763,16 @@ class DesktopApp(VeyoraApp):
             )
             button.grid(row=0, column=column, padx=3)
             self.filter_buttons[value] = button
+        bulk_buttons = ctk.CTkFrame(header, fg_color="transparent")
+        bulk_buttons.grid(row=0, column=2, padx=(10, 0))
+        self.ghost_button(
+            bulk_buttons, self.t("⏸ إيقاف الكل", "⏸ Pause all"),
+            self._pause_all_downloads, width=92, height=32,
+        ).pack(side="left", padx=3)
+        self.ghost_button(
+            bulk_buttons, self.t("▶ استئناف الكل", "▶ Resume all"),
+            self._resume_all_downloads, width=100, height=32,
+        ).pack(side="left", padx=3)
         self.ghost_button(
             header,
             "🗑  " + self.t("مسح المكتمل", "Clear completed"),
@@ -2690,7 +2781,7 @@ class DesktopApp(VeyoraApp):
             width=126,
             height=32,
             font=("Segoe UI", 10),
-        ).grid(row=0, column=2, padx=(12, 0))
+        ).grid(row=0, column=3, padx=(12, 0))
 
         self.downloads_scroll = ctk.CTkScrollableFrame(
             frame,

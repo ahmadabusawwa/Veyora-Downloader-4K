@@ -835,6 +835,37 @@ class DownloadQueueManager:
         self._notify_ui()
         self._process_queue()
 
+    def pause_all(self):
+        """Pause queued and downloading tasks together without touching completed work."""
+        changed = 0
+        with self.lock:
+            for tid in self.task_order:
+                task = self.tasks[tid]
+                if task['status'] in ('Queued', 'Downloading'):
+                    self.pause_events[tid].set()
+                    task['status'] = 'Paused'
+                    changed += 1
+        if changed:
+            self._journal()
+            self._notify_ui()
+        return changed
+
+    def resume_all(self):
+        """Resume paused tasks as a batch, respecting the concurrency limit."""
+        changed = 0
+        with self.lock:
+            for tid in self.task_order:
+                task = self.tasks[tid]
+                if task['status'] == 'Paused':
+                    self.pause_events[tid].clear()
+                    task['status'] = 'Downloading' if tid in self.futures else 'Queued'
+                    changed += 1
+        if changed:
+            self._journal()
+            self._notify_ui()
+            self._process_queue()
+        return changed
+
     def cancel_task(self, tid):
         with self.lock:
             t = self.tasks.get(tid)

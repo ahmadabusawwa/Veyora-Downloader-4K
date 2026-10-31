@@ -254,3 +254,49 @@ def test_failed_reanalysis_clears_previous_video_metadata_and_thumbnail(monkeypa
         assert 'Metadata request failed' in app.preview_meta.cget('text')
     finally:
         app._on_close()
+
+
+def test_clip_time_fields_normalize_and_reject_bad_values():
+    from desktop_ui import normalize_clip_time
+    assert normalize_clip_time("13") == "00:00:13"
+    assert normalize_clip_time("2:13") == "00:02:13"
+    assert normalize_clip_time("01:02:03") == "01:02:03"
+    for invalid in ("", "00:75:00", "00:00:-1", "00:00:01.25", "NaN"):
+        with pytest.raises(ValueError):
+            normalize_clip_time(invalid)
+
+
+def test_pause_all_resume_all_preserves_terminal_and_limits_workers():
+    import threading
+    from main import DownloadQueueManager
+    manager = object.__new__(DownloadQueueManager)
+    manager.lock = threading.RLock()
+    manager.task_order = ["active", "waiting", "done", "failed"]
+    manager.tasks = {key: {"status": status} for key, status in (
+        ("active", "Downloading"), ("waiting", "Queued"),
+        ("done", "Completed"), ("failed", "Failed")
+    )}
+    manager.pause_events = {key: threading.Event() for key in manager.task_order}
+    manager.futures = {"active": object()}
+    calls = []
+    manager._journal = lambda: calls.append("journal")
+    manager._notify_ui = lambda: calls.append("notify")
+    manager._process_queue = lambda: calls.append("schedule")
+
+    assert manager.pause_all() == 2
+    assert manager.tasks["active"]["status"] == "Paused"
+    assert manager.tasks["waiting"]["status"] == "Paused"
+    assert all(manager.pause_events[k].is_set() for k in ("active", "waiting"))
+    assert manager.tasks["done"]["status"] == "Completed"
+    assert manager.tasks["failed"]["status"] == "Failed"
+    assert "schedule" not in calls
+    assert manager.pause_all() == 0
+
+    assert manager.resume_all() == 2
+    assert manager.tasks["active"]["status"] == "Downloading"
+    assert manager.tasks["waiting"]["status"] == "Queued"
+    assert not any(manager.pause_events[k].is_set() for k in ("active", "waiting"))
+    assert manager.tasks["done"]["status"] == "Completed"
+    assert manager.tasks["failed"]["status"] == "Failed"
+    assert calls.count("schedule") == 1
+    assert manager.resume_all() == 0
