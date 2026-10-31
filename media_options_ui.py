@@ -31,6 +31,7 @@ def subtitle_options(app,path):
     try:style=normalize_style(app.settings.get('subtitle_style'))
     except (ValueError,TypeError):style=dict(DEFAULT)
     variables={key:ctk.StringVar(value=str(value)) for key,value in style.items()}
+    variable_traces=[]
     sliders=[]
     for row,(key,ar,en,low,high) in enumerate([('size_percent','حجم الخط (% من الارتفاع)','Font size (% of height)',1,10),('outline','سُمك الحد الأسود','Black outline',0,5),('margin_percent','الهامش العمودي (%)','Vertical margin (%)',0,35)]):
         ctk.CTkLabel(left,text=app.t(ar,en),anchor=app._anchor()).grid(row=row*2,column=0,padx=12,pady=(12,2),sticky='ew')
@@ -42,7 +43,7 @@ def subtitle_options(app,path):
             try:value=float(variables[key].get())
             except ValueError:return
             if low<=value<=high:slider.set(value)
-        variables[key].trace_add('write',sync_slider)
+        variable_traces.append((variables[key],variables[key].trace_add('write',sync_slider)))
     ctk.CTkLabel(left,text=app.t('لون الخط','Font color')).grid(row=6,column=0,pady=(16,4))
     ctk.CTkEntry(left,textvariable=variables['color'],width=180).grid(row=7,column=0,padx=12)
     def choose_color():
@@ -127,7 +128,7 @@ def subtitle_options(app,path):
     window._save_button=app.button(left,app.t('حفظ الإعدادات','Save settings'),save);window._save_button.grid(row=11,column=0,pady=16,padx=12)
     window._preview_button=app.ghost_button(left,app.t('تحديث المعاينة','Refresh preview'),refresh);window._preview_button.grid(row=12,column=0,pady=4)
     window._style_controls=variables;window._preview_revision=0
-    for var in variables.values():var.trace_add('write',schedule)
+    for var in variables.values():variable_traces.append((var,var.trace_add('write',schedule)))
     trace_id[0]=path.trace_add('write',schedule)
     def destroy(event):
         if event.widget is not window:return
@@ -137,4 +138,8 @@ def subtitle_options(app,path):
             except Exception:pass
         try:path.trace_remove('write',trace_id[0])
         except Exception:pass
+        for variable,token in variable_traces:
+            try:variable.trace_remove('write',token)
+            except Exception:pass
+        variable_traces.clear()
     window.bind('<Destroy>',destroy,add='+');schedule()

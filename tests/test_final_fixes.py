@@ -117,6 +117,8 @@ def test_live_preview_updates_without_pressing_refresh(monkeypatch,tmp_path):
                 state['phase']=1
             elif state['phase']==1 and window._preview_revision>state['revision']:
                 assert window._preview_image.cget('light_image').tobytes()!=state['first']
+                window.destroy()
+                assert not any(variable.trace_info() for variable in window._style_controls.values())
                 app.quit();return
             app.after(30,poll)
         except Exception as exc:errors.append(exc);app.quit()
