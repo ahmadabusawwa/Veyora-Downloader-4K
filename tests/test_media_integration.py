@@ -108,7 +108,9 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
     pause, cancel = threading.Event(), threading.Event()
     paused = threading.Event()
     result = []
+    events = []
     def progress(tid, data):
+        events.append((data.get('status'), data.get('downloaded_bytes'), data.get('total_bytes')))
         if data.get('downloaded_bytes', 0) > 65536:
             pause.set()
             paused.set()
@@ -116,7 +118,7 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
         args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
     try:
         thread.start()
-        assert paused.wait(10)
+        assert paused.wait(10), {'result': result, 'ranges': list(ranges), 'events': events[-30:], 'alive': thread.is_alive(), 'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]}
         time.sleep(.15)
         assert thread.is_alive() and not result
         cancel.set()  # cancelling a paused worker must unblock it
