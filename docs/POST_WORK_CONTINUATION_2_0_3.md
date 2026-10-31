@@ -55,3 +55,23 @@ The README and Windows build guide were also corrected to the actual **Veyora-Pr
 - نجحت محليًا 4 اختبارات تكامل وسائط باستخدام yt-dlp 2026.10.26 نفسه، و31 اختبارًا مستقلًا للتحديثات والأداء وذاكرة الصور المصغرة. هذه نتائج Linux وليست إثباتًا لاختبارات Windows النهائية.
 - عُدّل GitHub Actions ليبني ويفحص SHA الخاص بفرع التطوير نفسه، بدلًا من دمج PR المؤقت، ليتطابق مصدر الكود مع ناتج البناء. أُضيف منع تشغيل فحوص وحدة قديمة بالتوازي، وفحص صياغة Python قبل pytest.
 - القبول النهائي مشروط بنتيجة Windows الجديدة. لم يحصل أي نشر رسمي أو تعديل للإصدار 2.0.3 أو تحسين سرعة التطبيق.
+
+
+## Windows root-cause confirmation: cross-thread Tk finalizers
+
+After the earlier HTTP fixture improvements, a captured Windows Python worker
+stack conclusively identified the apparent download stall: it was inside
+`tkinter.Variable.__del__` (`self._tk.call('info', 'exists', ...)`) while
+yt-dlp's metadata template/traversal code was allocating objects. The test
+suite had created and destroyed multiple Tk roots beforehand; cyclic GC ran
+their orphaned widget/StringVar finalizers on the download worker. The server
+had not yet received any HTTP request. This is a Tk test-lifecycle/thread
+hazard, **not evidence that the production HTTP resume feature is broken**.
+
+The pytest suite now collects unreachable Tk object graphs at test teardown
+on the owning main thread; the transport test also forces main-thread
+collection before launching its downloader worker. Actual HTTP byte-transfer,
+pause, cancellation, partial file retention and positive Range resume remain
+mandatory assertions. This is test-resource lifecycle repair and does not
+change the application's speed or disable a production feature. Re-run full
+Windows tests before claiming acceptance.

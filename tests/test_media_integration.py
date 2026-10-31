@@ -167,6 +167,11 @@ def test_actual_download_cancel_resume_uses_range(tmp_path, monkeypatch):
         if data.get('downloaded_bytes', 0) > 65536:
             pause.set()
             paused.set()
+    # Drain any stale Tk graph while still on pytest's main thread.
+    # Worker-triggered collection can otherwise invoke Tk Variable.__del__
+    # on a non-UI thread and deadlock the Windows Tcl interpreter.
+    import gc
+    gc.collect()
     thread = threading.Thread(target=main.DownloadEngine.download_task,
         args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
     try:
