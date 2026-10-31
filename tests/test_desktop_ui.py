@@ -197,3 +197,83 @@ def test_sign_and_verify_update_end_to_end(monkeypatch, tmp_path):
     installer.write_bytes(b"INERT INSTALLER PAYLOAD FOR SIGNATURE VERIFICATION")
     assert sign_update.main([str(installer), "--key", str(priv_key), "--key-id", "test-2026", "--tag", "v2.0.0"]) == 0
     assert sign_update.main([str(installer), "--tag", "v2.0.0", "--verify"]) == 0
+
+
+def test_failed_download_card_shows_error_and_log_action():
+    """A failed item must never abort the entire Downloads render."""
+    app = DesktopApp()
+    try:
+        app.show_tab("Downloads")
+        task = {
+            "id": "failed-card-regression",
+            "title": "Video with an error",
+            "status": "Failed",
+            "progress": 0,
+            "settings": {"quality": "1080p", "format": "MP4", "download_subs": False},
+            "error": "تحقق من بداية القص ونهايته",
+        }
+        app.create_download_card(task, 0)
+        app._update_download_card(task)
+        assert app._card_info_labels[task["id"]].cget("text") == task["error"]
+        assert app._card_buttons[task["id"]]["errorlog"].winfo_manager() == "pack"
+        assert app._card_buttons[task["id"]]["retry"].winfo_manager() == "pack"
+    finally:
+        app._on_close()
+
+
+def test_video_language_labels_are_logical_arabic_not_pre_shaped():
+    """Native CTkOptionMenu / Tk menus must receive logical Unicode labels."""
+    from ui_controls import native_label
+
+    class ArabicLanguageUI:
+        is_arabic = True
+        _source_labels = DesktopApp._source_labels
+
+    ui = ArabicLanguageUI()
+    source_labels = DesktopApp._source_labels(ui)
+    assert source_labels == [
+        "🌐 اكتشاف تلقائي",
+        "(ar) العربية",
+        "(en) الإنجليزية",
+        "(tr) التركية",
+        "(ko) الكورية",
+    ]
+    assert DesktopApp._target_labels(ui) == source_labels[1:]
+    for code, label in (
+        ("auto", "🌐 اكتشاف تلقائي"),
+        ("ar", "(ar) العربية"),
+        ("en", "(en) الإنجليزية"),
+        ("tr", "(tr) التركية"),
+        ("ko", "(ko) الكورية"),
+    ):
+        selected = DesktopApp._label_for_lang(ui, code, allow_auto=True)
+        assert selected == label
+        assert selected in source_labels
+        assert native_label(selected) == selected
+        assert DesktopApp._lang_code(selected) == code
+    # Visual/BiDi presentation forms in a native menu regress to reversed text.
+    assert not any("\ufb50" <= char <= "\ufeff"
+                   for value in source_labels for char in value)
+
+
+def test_video_language_native_menu_renders_logical_auto_detect():
+    """Protect the actual Windows selected label and dropdown entry."""
+    import sys
+    if not sys.platform.startswith("win"):
+        pytest.skip("Native Windows dropdown regression check")
+
+    app = DesktopApp()
+    try:
+        app.settings["ui_language"] = "ar"
+        labels = app._source_labels()
+        # Reuse the built-in widget instead of creating an extra Tk menu/root.
+        menu = app.source_menu
+        menu.configure(values=labels)
+        menu.set(labels[0])
+        assert menu._text_label.cget("text") == "🌐 اكتشاف تلقائي"
+        # DropdownMenu itself subclasses tkinter.Menu; it has no '_menu' member.
+        assert menu._dropdown_menu.entrycget(0, "label") == "🌐 اكتشاف تلقائي"
+        menu.set(labels[1])
+        assert menu._text_label.cget("text") == "(ar) العربية"
+    finally:
+        app._on_close()

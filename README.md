@@ -39,7 +39,7 @@ The signed updater is implemented and tested against safe inert fixtures. **Prod
 .\build_windows_2.ps1 -FfmpegDirectory C:\verified-tools\ffmpeg\bin
 ```
 
-Produces `Veyora-Pro-Setup-2.0.0.exe` on Windows after passing checks. Inno Setup installs per user, creates shortcuts and an uninstaller, and leaves `.veyora`, downloaded media and model files outside the application directory. This Linux session did not build or execute a Windows installer. Cross-version update, uninstall and power-loss testing remain mandatory.
+Produces `Veyora-Pro-2.0.3-Setup.exe` on Windows after passing checks. Inno Setup installs per user, creates shortcuts and an uninstaller, and leaves `.veyora`, downloaded media and model files outside the application directory. This Linux session did not build or execute a Windows installer. Cross-version update, uninstall and power-loss testing remain mandatory.
 
 ## Validation actually performed
 

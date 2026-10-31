@@ -209,3 +209,10 @@ def test_network_progress_restores_download_state_after_preprocessing(monkeypatc
         task=manager.get_tasks_by_status()[0]
         assert task['id']==tid and task['status']=='Downloading' and task['progress']==.1
     finally:release.set();manager.shutdown()
+
+
+def test_arabic_text_missing_libraries_keeps_media_names(monkeypatch):
+    import main
+    monkeypatch.setattr(main, "HAS_ARABIC_LIBS", False)
+    original = "المقطع.mp4 وملاحظة.srt"
+    assert main.fix_arabic_text(original) == original

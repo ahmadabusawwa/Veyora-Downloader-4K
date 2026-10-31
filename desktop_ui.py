@@ -44,6 +44,17 @@ from ui_icons import icon
 from runtime_support import LatestProgress, friendly_error
 
 
+def normalize_clip_time(value):
+    """Return a canonical HH:MM:SS for the clip fields; reject invalid input."""
+    from media_clipping import time_seconds
+    seconds = time_seconds(value)
+    if not seconds.is_integer():
+        raise ValueError("Use whole seconds in the clip time fields")
+    hours, remaining = divmod(int(seconds), 3600)
+    minutes, seconds = divmod(remaining, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 # ---------------------------------------------------------------------------
 # Design tokens matching the Veyora Pro 2.0 reference interface
 # ---------------------------------------------------------------------------
@@ -312,12 +323,20 @@ class DesktopApp(VeyoraApp):
             self.after(500, self._offer_download_recovery)
 
     def _offer_download_recovery(self):
-        title='استعادة التحميلات' if self.is_arabic else 'Recover downloads'
-        body=('توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.' if self.is_arabic else
-              'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.')
-        if messagebox.askyesno(title,body,parent=self):
+        # Use the application's own Arabic-capable confirmation instead of a
+        # native Windows MessageBox, whose text direction is not controlled by Tk.
+        from confirmation import confirm
+
+        def resume():
             self.queue_manager.restore_previous()
             self.show_tab('Downloads')
+
+        return confirm(
+            self, 'استعادة التحميلات', 'Recover downloads',
+            'توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.',
+            'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.',
+            resume,
+        )
 
 
     # ------------------------------------------------------------------
@@ -505,12 +524,15 @@ class DesktopApp(VeyoraApp):
     # ------------------------------------------------------------------
     def _source_labels(self) -> list[str]:
         if self.is_arabic:
+            # CTkOptionMenu uses a native Tk Label and a native Windows menu.
+            # Pass logical Unicode Arabic, not pre-shaped visual/BiDi text.
+            # The normal self.t() helper is for canvas-rendered labels only.
             return [
-                self.t("🌐 اكتشاف تلقائي", "Auto detect"),
-                self.t("(ar) العربية", "Arabic (ar)"),
-                self.t("(en) الإنجليزية", "English (en)"),
-                self.t("(tr) التركية", "Turkish (tr)"),
-                self.t("(ko) الكورية", "Korean (ko)"),
+                "🌐 اكتشاف تلقائي",
+                "(ar) العربية",
+                "(en) الإنجليزية",
+                "(tr) التركية",
+                "(ko) الكورية",
             ]
         return ["Auto detect"] + [f"{name} ({code})" for code, name in LANGUAGES.items()]
 
@@ -525,7 +547,7 @@ class DesktopApp(VeyoraApp):
             code = "ar"
         if self.is_arabic:
             ar_name = LANGUAGE_NAMES_AR.get(code, "العربية")
-            return self.t(f"({code}) {ar_name}", f"{LANGUAGES[code]} ({code})")
+            return f"({code}) {ar_name}"
         return f"{LANGUAGES[code]} ({code})"
 
     @staticmethod
@@ -1755,6 +1777,7 @@ class DesktopApp(VeyoraApp):
             height=30,
             fg_color=self.c["panel2"],
             border_color=self.c["edge"],
+            border_width=2,
             text_color=self.c["text"],
             justify="center",
             font=("Segoe UI", 11),
@@ -1775,11 +1798,21 @@ class DesktopApp(VeyoraApp):
             height=30,
             fg_color=self.c["panel2"],
             border_color=self.c["edge"],
+            border_width=2,
             text_color=self.c["text"],
             justify="center",
             font=("Segoe UI", 11),
         )
         self.clip_end_entry.grid(row=0, column=2, sticky="ew")
+        for field, variable in ((self.clip_start_entry, self.clip_start_var),
+                                (self.clip_end_entry, self.clip_end_var)):
+            self._bind_clip_time_field(field, variable)
+        ctk.CTkLabel(
+            clip_row,
+            text=self.t("الوقت: ساعات : دقائق : ثوانٍ", "Time: Hours : Minutes : Seconds"),
+            text_color=self.c["muted"],
+            font=("Segoe UI", 10),
+        ).grid(row=1, column=0, columnspan=3, pady=(3, 0))
 
         # Primary CTA button
         self.button(
@@ -1790,6 +1823,35 @@ class DesktopApp(VeyoraApp):
             corner_radius=10,
             font=("Segoe UI", 14, "bold"),
         ).grid(row=4, column=0, padx=14, pady=(4, 10), sticky="ew")
+
+    def _bind_clip_time_field(self, field, variable):
+        """Highlight focused clip time and select just the clicked HH/MM/SS part."""
+        normal = self.c["edge"]
+        yellow = "#FACC15"
+
+        def focused(_event):
+            field.configure(border_color=yellow)
+
+        def unfocused(_event):
+            try:
+                variable.set(normalize_clip_time(variable.get()))
+            except ValueError:
+                field.configure(border_color=self.c["bad"])
+            else:
+                field.configure(border_color=normal)
+
+        def select_segment(event):
+            widget = event.widget
+            value = widget.get()
+            if len(value) != 8 or value[2] != ":" or value[5] != ":":
+                return
+            index = widget.index("insert")
+            start, end = (0, 2) if index <= 2 else ((3, 5) if index <= 5 else (6, 8))
+            widget.after_idle(lambda: (widget.selection_range(start, end), widget.icursor(end)))
+
+        field.bind("<FocusIn>", focused, add="+")
+        field.bind("<FocusOut>", unfocused, add="+")
+        field.bind("<ButtonRelease-1>", select_segment, add="+")
 
     def _switch_row(self, parent, row, text, variable, command):
         line = ctk.CTkFrame(parent, fg_color="transparent")
@@ -1904,6 +1966,12 @@ class DesktopApp(VeyoraApp):
         SettingsManager.save(self.settings)
         self._update_translation_hint()
 
+    def _pause_all_downloads(self):
+        self.queue_manager.pause_all()
+
+    def _resume_all_downloads(self):
+        self.queue_manager.resume_all()
+
     def _build_queue(self, parent):
         panel = self.card(parent)
         self.queue_panel = panel
@@ -1934,6 +2002,14 @@ class DesktopApp(VeyoraApp):
         right_bar.grid(row=0, column=2, sticky="e")
 
         self.ghost_button(
+            right_bar, self.t("⏸ إيقاف الكل", "⏸ Pause all"),
+            self._pause_all_downloads, width=92, height=28,
+        ).grid(row=0, column=0, padx=3)
+        self.ghost_button(
+            right_bar, self.t("▶ استئناف الكل", "▶ Resume all"),
+            self._resume_all_downloads, width=100, height=28,
+        ).grid(row=0, column=1, padx=3)
+        self.ghost_button(
             right_bar,
             "🗑  " + self.t("مسح الكل", "Clear completed"),
             self.clear_completed,
@@ -1944,11 +2020,11 @@ class DesktopApp(VeyoraApp):
             width=104,
             height=28,
             font=("Segoe UI", 11),
-        ).grid(row=0, column=0, padx=(0, 8))
+        ).grid(row=0, column=2, padx=(0, 8))
 
         self.filter_buttons = {}
         filters = ctk.CTkFrame(right_bar, fg_color="transparent")
-        filters.grid(row=0, column=1, sticky="e")
+        filters.grid(row=0, column=3, sticky="e")
         # Order matching reference UI: فاشل | مكتمل | جاري | الكل
         display_filters = list(reversed(FILTERS))
         for column, (value, ar, en) in enumerate(display_filters):
@@ -2179,7 +2255,12 @@ class DesktopApp(VeyoraApp):
         if self.active_tab != "Dashboard":
             self._pending_preview = info
             return
+        # A second lookup of the same URL must invalidate older image jobs,
+        # even if the URL's draft revision did not change.
+        self._preview_thumbnail_seq = getattr(self, '_preview_thumbnail_seq', 0) + 1
+        thumbnail_seq = self._preview_thumbnail_seq
         if not info or info.get("error"):
+            self._clear_preview()
             self.preview_title.configure(text=self.t("تعذر تحليل الرابط", "Could not analyze the link"))
             self.preview_meta.configure(text=str((info or {}).get("error", ""))[:300])
             self.video_info.configure(text=self.t("لا توجد معلومات متاحة", "No information available"))
@@ -2237,7 +2318,7 @@ class DesktopApp(VeyoraApp):
                     image.thumbnail((500, 280))
                     image = image.copy()
                     self._ui_callbacks.put(
-                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" and preview_revision==self._draft_revision else None
+                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" and preview_revision==self._draft_revision and thumbnail_seq==self._preview_thumbnail_seq else None
                     )
                 except Exception:
                     pass
@@ -2285,6 +2366,21 @@ class DesktopApp(VeyoraApp):
             self._dashboard_dirty = False
 
     def start_download_action(self):
+        if hasattr(self, "clip_var") and self.clip_var.get():
+            from media_clipping import clip_interval
+            try:
+                start = normalize_clip_time(self.clip_start_var.get())
+                end = normalize_clip_time(self.clip_end_var.get())
+                clip_interval(start, end)
+            except ValueError:
+                self.notify(
+                    "وقت القص غير صالح. استخدم ساعات:دقائق:ثوانٍ وتأكد أن النهاية بعد البداية.",
+                    "Invalid clip time. Use HH:MM:SS and ensure the end is after the start.",
+                    kind="warning",
+                )
+                return
+            self.clip_start_var.set(start)
+            self.clip_end_var.set(end)
         self._prepare_dashboard_settings()
         super().start_download_action()
 
@@ -2419,8 +2515,8 @@ class DesktopApp(VeyoraApp):
         info = ctk.CTkLabel(
             prog_col,
             text="",
-            anchor="w",
-            justify="left",
+            anchor="e" if self.is_arabic else "w",
+            justify="right" if self.is_arabic else "left",
             text_color=colors["muted"],
             font=("Segoe UI", 10),
             wraplength=420,
@@ -2452,6 +2548,9 @@ class DesktopApp(VeyoraApp):
             "show": (self.t('فتح الموقع','Open folder'), lambda: self._open_download_output(tid,'folder')),
             "play": (self.t('تشغيل الملف النهائي','Play final output'), lambda: self._open_download_output(tid)),
             "subtitle": (self.t('فتح ملف الترجمة','Open SRT'), lambda: self._open_download_output(tid,'subtitle')),
+            # Failed-card actions must exist: an absent entry previously raised
+            # KeyError and aborted rendering the entire download list.
+            "errorlog": (self.t('سجل الخطأ','Error log'), self._open_error_log),
         }
         self.card_widgets[tid] = card
         self._card_title_labels[tid] = title
@@ -2541,8 +2640,9 @@ class DesktopApp(VeyoraApp):
             shown_title=self.t("جارٍ قراءة بيانات الفيديو…","Resolving…") if title in ("Resolving...","Resolving…") else title
             self._card_title_labels[tid].configure(text=shown_title)
         if text != old.get("text"):
-            # Shape Arabic exactly once, after assembling the full mixed-language line.
-            self._card_info_labels[tid].configure(text=fix_arabic_text(text) if self.is_arabic else text)
+            # CTkLabel is backed by a native Tk label: do not pre-reorder RTL text.
+            # Errors can be Arabic even while the application UI is in English.
+            self._card_info_labels[tid].configure(text=text)
         if progress != old.get("progress"):
             self._card_progress_bars[tid].set(progress)
             if tid in self._card_percent_labels:
@@ -2555,13 +2655,13 @@ class DesktopApp(VeyoraApp):
             if status in ("Failed", "Cancelled")
             else self.c["blue"]
         )
-        self._card_progress_bars[tid].configure(progress_color=bar_color)
-
-        if tid in getattr(self, "_card_status_labels", {}):
-            status_lbl, status_icon = self._card_status_labels[tid]
-            status_lbl.configure(text=status_display, text_color=bar_color)
-            icon_char = "✓" if status == "Completed" else ("▲" if status in ("Failed", "Cancelled") else "↓")
-            status_icon.configure(text=icon_char, text_color=bar_color)
+        if status != old.get("status"):
+            self._card_progress_bars[tid].configure(progress_color=bar_color)
+            if tid in getattr(self, "_card_status_labels", {}):
+                status_lbl, status_icon = self._card_status_labels[tid]
+                status_lbl.configure(text=status_display, text_color=bar_color)
+                icon_char = "✓" if status == "Completed" else ("▲" if status in ("Failed", "Cancelled") else "↓")
+                status_icon.configure(text=icon_char, text_color=bar_color)
 
         if status != old.get("status") or bool(task.get("subtitle_file")) != old.get("subtitle_available"):
             buttons = self._card_buttons[tid]
@@ -2601,12 +2701,15 @@ class DesktopApp(VeyoraApp):
             btn = getattr(self, "filter_buttons", {}).get(value)
             if btn is not None and btn.winfo_exists():
                 selected = value == self.active_filter
-                btn.configure(
-                    text=f"{self.t(ar, en)} ({counts.get(value, 0)})",
-                    fg_color=self.c["blue"] if selected else self.c["panel2"],
-                    text_color="#ffffff" if selected else self.c["muted"],
-                    border_color=self.c["blue"] if selected else self.c["edge"],
-                )
+                view_state = (counts.get(value, 0), selected, self.is_arabic)
+                if getattr(btn, "_view_state", None) != view_state:
+                    btn.configure(
+                        text=f"{self.t(ar, en)} ({counts.get(value, 0)})",
+                        fg_color=self.c["blue"] if selected else self.c["panel2"],
+                        text_color="#ffffff" if selected else self.c["muted"],
+                        border_color=self.c["blue"] if selected else self.c["edge"],
+                    )
+                    btn._view_state = view_state
 
     def render_download_items(self):
         try:
@@ -2669,6 +2772,16 @@ class DesktopApp(VeyoraApp):
             )
             button.grid(row=0, column=column, padx=3)
             self.filter_buttons[value] = button
+        bulk_buttons = ctk.CTkFrame(header, fg_color="transparent")
+        bulk_buttons.grid(row=0, column=2, padx=(10, 0))
+        self.ghost_button(
+            bulk_buttons, self.t("⏸ إيقاف الكل", "⏸ Pause all"),
+            self._pause_all_downloads, width=92, height=32,
+        ).pack(side="left", padx=3)
+        self.ghost_button(
+            bulk_buttons, self.t("▶ استئناف الكل", "▶ Resume all"),
+            self._resume_all_downloads, width=100, height=32,
+        ).pack(side="left", padx=3)
         self.ghost_button(
             header,
             "🗑  " + self.t("مسح المكتمل", "Clear completed"),
@@ -2677,7 +2790,7 @@ class DesktopApp(VeyoraApp):
             width=126,
             height=32,
             font=("Segoe UI", 10),
-        ).grid(row=0, column=2, padx=(12, 0))
+        ).grid(row=0, column=3, padx=(12, 0))
 
         self.downloads_scroll = ctk.CTkScrollableFrame(
             frame,
@@ -2931,7 +3044,7 @@ class DesktopApp(VeyoraApp):
         self.settings["download_subs"] = self.sub_var.get()
         self.settings["save_thumbnail"] = self.thumb_var.get()
         try:
-            maximum = max(1, min(8, int(self.concurrent_var.get())))
+            maximum = max(1, min(5, int(self.concurrent_var.get())))
         except ValueError:
             maximum = self.settings.get("max_concurrent", 3)
         self.settings["max_concurrent"] = maximum
@@ -3286,7 +3399,7 @@ class DesktopApp(VeyoraApp):
         def save():
             self.settings["save_original_subtitles"] = original.get()
             self.settings["save_thumbnail"] = thumb.get()
-            self.settings["max_concurrent"] = max(1, min(8, int(max_concurrent.get())))
+            self.settings["max_concurrent"] = max(1, min(5, int(max_concurrent.get())))
             self.settings["performance_mode"] = performance.get()
             self.settings["speech_model"] = speech.get()
             self.settings["subtitle_mode"] = subtitle_mode.get()

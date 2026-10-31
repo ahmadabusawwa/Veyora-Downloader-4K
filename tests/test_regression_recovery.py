@@ -131,3 +131,35 @@ def test_dialogue_option_selects_real_extraction_branch(monkeypatch,tmp_path,ena
     processor.enhance_speech=enabled
     processor._extract_speech(tmp_path/'audio.wav',lambda:None)
     assert called==['enhanced' if enabled else 'original']
+
+
+def test_recovery_confirmation_is_in_app_and_no_keeps_queue(monkeypatch, tmp_path):
+    """Recovery confirmation must not fall back to Windows' directionless MessageBox."""
+    import main
+    from tkinter import messagebox
+    from desktop_ui import DesktopApp
+
+    monkeypatch.setenv('VEYORA_CONFIG_DIR', str(tmp_path))
+    monkeypatch.setattr(main, 'CONFIG_DIR', tmp_path)
+    monkeypatch.setitem(main.DEFAULT_SETTINGS, 'auto_update_check', False)
+    def native_dialog_not_allowed(*args, **kwargs):
+        raise AssertionError('Native MessageBox must not be used for Arabic recovery')
+    monkeypatch.setattr(messagebox, 'askyesno', native_dialog_not_allowed)
+
+    app = DesktopApp()
+    try:
+        app.settings['ui_language'] = 'ar'
+        was_restored = []
+        monkeypatch.setattr(app.queue_manager, 'restore_previous',
+                            lambda: was_restored.append(True))
+        controls = app._offer_download_recovery()
+        assert controls is app._confirm_controls
+        assert controls['window'].title() == 'استعادة التحميلات'
+        assert controls['label'].cget('text') == app.t('توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.', 'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.')
+        assert controls['yes'].cget('text') == app.t('نعم', 'Yes')
+        assert controls['no'].cget('text') == app.t('لا', 'No')
+        controls['no'].invoke()
+        assert not was_restored
+        assert app._confirm_controls is None
+    finally:
+        app._on_close()

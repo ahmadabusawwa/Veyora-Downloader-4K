@@ -153,8 +153,7 @@ def fix_arabic_text(text):
             display = get_display(reshaped)
             return display
         else:
-            for ext in ['.mp4', '.mkv', '.mov', '.webm', '.mp3', '.m4a', '.srt', '.vtt', '.avi', '.flv']:
-                text = text.replace(ext, '')
+            # A missing display dependency must never corrupt media titles.
             return text
     except Exception:
         return text
@@ -651,6 +650,9 @@ class DownloadQueueManager:
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.pause_events, self.cancel_events = {}, {}
         self.ui_dirty = threading.Event()
+        # Coalesce progress bursts: Tk redraws must not run 10+ times a second.
+        self._next_ui_refresh = 0.0
+        self._all_paused = False
         self.closed = False
         from recovery_store import RecoveryStore, recovery_path
         self.recovery = RecoveryStore(recovery_path(CONFIG_DIR))
@@ -707,9 +709,15 @@ class DownloadQueueManager:
         self.ui_dirty.set()
 
     def poll_ui(self):
-        if self.ui_dirty.is_set():
-            self.ui_dirty.clear()
-            self.update_ui_callback()
+        if not self.ui_dirty.is_set():
+            return
+        now = time.monotonic()
+        if now < self._next_ui_refresh:
+            # Leave the dirty flag set so the latest state is rendered later.
+            return
+        self._next_ui_refresh = now + 0.25
+        self.ui_dirty.clear()
+        self.update_ui_callback()
 
     def add_task(self, url, settings, title="Resolving...", selected_folder=None, video_id="", thumbnail=""):
         if not is_valid_url(url):
@@ -736,7 +744,7 @@ class DownloadQueueManager:
 
     def _process_queue(self):
         with self.lock:
-            if self.closed:
+            if self.closed or self._all_paused:
                 return
             for tid in self.task_order:
                 if len(self.futures) >= self.max_concurrent:
@@ -834,6 +842,41 @@ class DownloadQueueManager:
                 t['status'] = 'Downloading' if tid in self.futures else 'Queued'
         self._notify_ui()
         self._process_queue()
+
+    def pause_all(self):
+        """Pause queued and downloading tasks together without touching completed work."""
+        changed = 0
+        with self.lock:
+            self._all_paused = True
+            for tid in self.task_order:
+                task = self.tasks[tid]
+                if task['status'] in ('Queued', 'Downloading'):
+                    self.pause_events[tid].set()
+                    task['status'] = 'Paused'
+                    changed += 1
+        if changed:
+            self._journal()
+            self._notify_ui()
+        return changed
+
+    def resume_all(self):
+        """Resume paused tasks as a batch, respecting the concurrency limit."""
+        changed = 0
+        with self.lock:
+            was_paused = self._all_paused
+            self._all_paused = False
+            for tid in self.task_order:
+                task = self.tasks[tid]
+                if task['status'] == 'Paused':
+                    self.pause_events[tid].clear()
+                    task['status'] = 'Downloading' if tid in self.futures else 'Queued'
+                    changed += 1
+        if changed or was_paused:
+            self._journal()
+            self._notify_ui()
+            # Include items added while the global pause was active.
+            self._process_queue()
+        return changed
 
     def cancel_task(self, tid):
         with self.lock:
@@ -1621,14 +1664,33 @@ class VeyoraApp(ctk.CTk):
                               self._card_title_labels, self._card_buttons, self._card_snapshots):
                     cache.pop(tid, None)
             elif tid not in visible:
-                self.card_widgets[tid].grid_remove()
+                card = self.card_widgets[tid]
+                if getattr(card, '_visible_row', None) is not None:
+                    card.grid_remove()
+                    card._visible_row = None
         for index, task in enumerate(tasks):
             tid = task['id']
             if tid not in self.card_widgets:
                 self.create_download_card(task, index)
+                self.card_widgets[tid]._visible_row = index
             else:
-                self.card_widgets[tid].grid(row=index)
-            self._update_download_card(task)
+                card = self.card_widgets[tid]
+                # Re-gridding every card on every progress event causes Tk
+                # layout churn and overlapping redraws for large playlists.
+                if getattr(card, '_visible_row', None) != index:
+                    card.grid(row=index)
+                    card._visible_row = index
+            card = self.card_widgets[tid]
+            try:
+                self._update_download_card(task)
+                card._render_error_logged = False
+            except Exception as exc:
+                # One damaged task must not prevent the remaining playlist
+                # cards from updating; emit diagnostics only once per card.
+                if not getattr(card, '_render_error_logged', False):
+                    from runtime_support import log_failure
+                    log_failure(exc, context='render download card')
+                    card._render_error_logged = True
         if not hasattr(self, '_empty_download_label') or not self._empty_download_label.winfo_exists():
             self._empty_download_label = ctk.CTkLabel(self.downloads_scroll, text="No downloads in this category.")
         if tasks:

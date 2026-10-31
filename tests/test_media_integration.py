@@ -70,53 +70,123 @@ def test_actual_ytdlp_http_download(sample, tmp_path):
         thread.join()
 
 
-def test_actual_download_cancel_resume_uses_range(tmp_path):
+def test_actual_download_cancel_resume_uses_range(tmp_path, monkeypatch):
     import time
+    from yt_dlp import YoutubeDL
+    from yt_dlp.extractor.common import InfoExtractor
     from translator.video_renderer import run_ffmpeg
     valid=tmp_path/'valid-resume.mp4'
     run_ffmpeg(['-f','lavfi','-i','testsrc2=s=640x360:r=15:d=4','-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',valid])
     payload = valid.read_bytes()
     ranges = []
+    head_requests = []
     class Media(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
-        def do_GET(self):
-            start = int(self.headers.get('Range', 'bytes=0-').split('=')[1].split('-')[0])
-            ranges.append(start)
-            self.send_response(206 if start else 200)
+
+        def do_HEAD(self):
+            # yt-dlp's Generic extractor probes content types before deciding
+            # whether a URL can be downloaded directly.
+            head_requests.append(self.path)
+            self.send_response(200)
             self.send_header('Content-Type', 'video/mp4')
-            self.send_header('Content-Length', str(len(payload) - start))
+            self.send_header('Content-Length', str(len(payload)))
             self.send_header('Accept-Ranges', 'bytes')
-            if start:
-                self.send_header('Content-Range', f'bytes {start}-{len(payload)-1}/{len(payload)}')
+            self.end_headers()
+
+        def do_GET(self):
+            import re
+            requested = self.headers.get('Range')
+            start, end = 0, len(payload) - 1
+            if requested:
+                match = re.fullmatch(r'bytes=(\d*)-(\d*)', requested)
+                if not match or not any(match.groups()):
+                    self.send_error(416, 'Malformed byte range')
+                    return
+                first, last = match.groups()
+                if first:
+                    start = int(first)
+                    end = min(int(last), end) if last else end
+                else:
+                    start = max(0, len(payload) - int(last))
+                if start > end or start >= len(payload):
+                    self.send_response(416)
+                    self.send_header('Content-Range', f'bytes */{len(payload)}')
+                    self.end_headers()
+                    return
+            ranges.append(start)
+            self.send_response(206 if requested else 200)
+            self.send_header('Content-Type', 'video/mp4')
+            self.send_header('Content-Length', str(end - start + 1))
+            self.send_header('Accept-Ranges', 'bytes')
+            if requested:
+                self.send_header('Content-Range', f'bytes {start}-{end}/{len(payload)}')
             self.end_headers()
             try:
-                for i in range(start, len(payload), 16384):
-                    self.wfile.write(payload[i:i + 16384])
+                for i in range(start, end + 1, 16384):
+                    self.wfile.write(payload[i:min(i + 16384, end + 1)])
                     self.wfile.flush()
-                    # The application's UI progress is throttled to 200 ms.
-                    # Keep this real transfer longer than one update so pause
-                    # occurs before EOF on fast Windows workers as well.
+                    # Keep the actual file transfer slow enough to permit the
+                    # application to pause before the network transfer finishes.
                     time.sleep(.02)
             except (BrokenPipeError, ConnectionResetError):
                 pass
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Media)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    task = dict(id='resume', url=f'http://127.0.0.1:{server.server_port}/video.mp4', title='Test',
+    # This test isolates the real yt-dlp HTTP/Range transport instead of
+    # GenericIE's unrelated content-sniffing of a synthetic local website.
+    # Only extractor metadata is synthetic; HTTP media bytes, .part files,
+    # pause, cancel and byte-range resume all remain real.
+    media_url = f'http://127.0.0.1:{server.server_port}/video.mp4'
+    class LocalTransportFixtureIE(InfoExtractor):
+        IE_NAME = 'Veyora:HTTPResumeFixture'
+        _VALID_URL = r'https?://127[.]0[.]0[.]1:[0-9]+/fixture$'
+
+        def _real_extract(self, url):
+            return dict(id='authorized-resume', title='Authorized resume fixture',
+                        url=media_url, ext='mp4')
+
+    def real_http_downloader(options):
+        downloader = YoutubeDL(options, auto_init=False)
+        downloader.add_info_extractor(LocalTransportFixtureIE())
+        # This transport-only fixture must not load thousands of unrelated
+        # site extractors before the timed HTTP pause/resume window begins.
+        # Other integration tests exercise the standard Generic extractor.
+        return downloader
+
+    monkeypatch.setattr(main, 'create_downloader', real_http_downloader)
+    task = dict(id='resume', url=f'http://127.0.0.1:{server.server_port}/fixture', title='Test',
         settings={**main.DEFAULT_SETTINGS, 'download_subs': False, 'save_thumbnail': False,
                   'download_dir': str(tmp_path)})
     pause, cancel = threading.Event(), threading.Event()
     paused = threading.Event()
     result = []
+    events = []
     def progress(tid, data):
+        events.append((data.get('status'), data.get('downloaded_bytes'), data.get('total_bytes')))
         if data.get('downloaded_bytes', 0) > 65536:
             pause.set()
             paused.set()
+    # Drain any stale Tk graph while still on pytest's main thread.
+    # Worker-triggered collection can otherwise invoke Tk Variable.__del__
+    # on a non-UI thread and deadlock the Windows Tcl interpreter.
+    import gc
+    gc.collect()
     thread = threading.Thread(target=main.DownloadEngine.download_task,
         args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
     try:
         thread.start()
-        assert paused.wait(10)
+        if not paused.wait(12):
+            # Preserve the true blocked stack. HTTP events alone only tell us
+            # whether the request reached the server, not where yt-dlp stopped.
+            import sys, traceback
+            frame = sys._current_frames().get(thread.ident)
+            stack = ''.join(traceback.format_stack(frame)) if frame is not None else '<no live worker frame>'
+            raise AssertionError({
+                'result': result, 'ranges': list(ranges),
+                'head_requests': list(head_requests), 'events': events[-30:],
+                'alive': thread.is_alive(), 'worker_stack': stack,
+                'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]})
         time.sleep(.15)
         assert thread.is_alive() and not result
         cancel.set()  # cancelling a paused worker must unblock it
@@ -126,12 +196,13 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
         assert parts and 0 < parts[0].stat().st_size < len(payload)
         pause.clear()
         cancel.clear()
+        requests_before_resume = len(ranges)
         resumed = []
         main.DownloadEngine.download_task(task, lambda *_: None, lambda *a: resumed.append(a),
             pause, cancel, str(tmp_path))
         assert resumed[0][1], resumed
         assert Path(task['downloaded_file']).read_bytes() == payload
-        assert any(start > 0 for start in ranges), ranges
+        assert any(start > 0 for start in ranges[requests_before_resume:]), ranges
     finally:
         cancel.set()
         thread.join(10)
