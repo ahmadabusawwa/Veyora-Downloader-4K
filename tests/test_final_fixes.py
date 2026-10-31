@@ -199,6 +199,7 @@ def test_network_progress_restores_download_state_after_preprocessing(monkeypatc
         complete(task['id'],False,'Test stopped')
     monkeypatch.setattr(main.DownloadEngine,'download_task',download)
     monkeypatch.setattr(main,'CONFIG_DIR',tmp_path)
+    monkeypatch.setenv('VEYORA_CONFIG_DIR',str(tmp_path))
     manager=main.DownloadQueueManager(lambda:None)
     try:
         tid=manager.add_task('https://example.com/video.mp4',main.DEFAULT_SETTINGS)
