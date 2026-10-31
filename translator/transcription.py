@@ -108,6 +108,36 @@ class Transcriber:
                 result.append(segment)
                 duration = getattr(info, 'duration', 0) or 0
                 progress(f'Recognizing {self.language} speech: {segment.end:.0f}s / {duration:.0f}s', min(1, segment.end / duration) if duration else None)
+            # A nonempty *partial* transcript must not suppress the no-VAD retry.
+            # In particular, VAD can miss sung words behind loud instrumentation.
+            # Keep the first-pass transcript; only add high-confidence, non-overlapping
+            # tail cues, because unfiltered music can also hallucinate speech.
+            duration = float(getattr(info, 'duration', 0) or 0)
+            last_end = max((s.end for s in result), default=0.0)
+            if result and duration - last_end >= 12.0:
+                checkpoint()
+                progress('Reviewing potentially missed speech after the last subtitle', None)
+                retry_segments, _ = _model.transcribe(
+                    audio_path, language=target_lang, task='transcribe', beam_size=5,
+                    vad_filter=False, no_speech_threshold=.45,
+                    log_prob_threshold=-.65, condition_on_previous_text=False,
+                )
+                additional = []
+                for segment in retry_segments:
+                    checkpoint()
+                    if (segment.start >= last_end + .2
+                            and getattr(segment, 'text', '').strip()
+                            and getattr(segment, 'no_speech_prob', 1) <= .45
+                            and getattr(segment, 'avg_logprob', -99) >= -.65
+                            and getattr(segment, 'compression_ratio', 99) <= 2.2):
+                        bounded = _bound_segment(segment, info)
+                        if bounded is not None and bounded.end > bounded.start:
+                            additional.append(bounded)
+                additional.sort(key=lambda s: (s.start, s.end))
+                for segment in additional:
+                    if segment.start >= last_end + .2:
+                        result.append(segment)
+                        last_end = segment.end
             if not result:
                 # Fallback without Silero VAD when short or synthetic non-English audio is filtered out.
                 checkpoint()
