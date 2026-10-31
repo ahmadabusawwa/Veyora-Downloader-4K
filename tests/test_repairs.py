@@ -178,3 +178,32 @@ def test_real_segment_is_immutable_and_transcriber_does_not_mutate(monkeypatch):
     assert model.transcribe.call_args.kwargs['language'] == 'en'
 
 
+
+
+def test_large_playlist_refresh_does_not_regrid_unchanged_cards():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import main
+
+    tasks = [
+        dict(id=str(i), title=f"video-{i}", status="Downloading",
+             progress=0.1, filesize=1000, speed="1 MB/s", eta="1:00", error=None)
+        for i in range(65)
+    ]
+    manager = Mock(TERMINAL=main.DownloadQueueManager.TERMINAL)
+    manager.get_tasks_by_status.return_value = tasks
+    app = SimpleNamespace(queue_manager=manager, active_filter="all",
+        card_widgets={}, _card_progress_bars={}, _card_info_labels={},
+        _card_title_labels={}, _card_buttons={}, _card_snapshots={},
+        status_label=Widget(), _empty_download_label=Widget())
+    def create(task, idx):
+        app.card_widgets[task["id"]] = Widget()
+    app.create_download_card = Mock(side_effect=create)
+    app._update_download_card = lambda task: None
+    main.VeyoraApp.render_download_items(app)
+    for step in range(20):
+        for task in tasks:
+            task["progress"] = step / 20
+        main.VeyoraApp.render_download_items(app)
+    assert app.create_download_card.call_count == 65
+    assert all(card.grid.call_count == 0 for card in app.card_widgets.values())

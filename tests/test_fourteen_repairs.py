@@ -284,6 +284,7 @@ def test_pause_all_resume_all_preserves_terminal_and_limits_workers():
     manager._process_queue = lambda: calls.append("schedule")
 
     assert manager.pause_all() == 2
+    assert manager._all_paused is True
     assert manager.tasks["active"]["status"] == "Paused"
     assert manager.tasks["waiting"]["status"] == "Paused"
     assert all(manager.pause_events[k].is_set() for k in ("active", "waiting"))
@@ -293,6 +294,7 @@ def test_pause_all_resume_all_preserves_terminal_and_limits_workers():
     assert manager.pause_all() == 0
 
     assert manager.resume_all() == 2
+    assert manager._all_paused is False
     assert manager.tasks["active"]["status"] == "Downloading"
     assert manager.tasks["waiting"]["status"] == "Queued"
     assert not any(manager.pause_events[k].is_set() for k in ("active", "waiting"))

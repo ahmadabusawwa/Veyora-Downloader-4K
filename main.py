@@ -652,6 +652,7 @@ class DownloadQueueManager:
         self.ui_dirty = threading.Event()
         # Coalesce progress bursts: Tk redraws must not run 10+ times a second.
         self._next_ui_refresh = 0.0
+        self._all_paused = False
         self.closed = False
         from recovery_store import RecoveryStore, recovery_path
         self.recovery = RecoveryStore(recovery_path(CONFIG_DIR))
@@ -743,7 +744,7 @@ class DownloadQueueManager:
 
     def _process_queue(self):
         with self.lock:
-            if self.closed:
+            if self.closed or self._all_paused:
                 return
             for tid in self.task_order:
                 if len(self.futures) >= self.max_concurrent:
@@ -846,6 +847,7 @@ class DownloadQueueManager:
         """Pause queued and downloading tasks together without touching completed work."""
         changed = 0
         with self.lock:
+            self._all_paused = True
             for tid in self.task_order:
                 task = self.tasks[tid]
                 if task['status'] in ('Queued', 'Downloading'):
@@ -861,15 +863,18 @@ class DownloadQueueManager:
         """Resume paused tasks as a batch, respecting the concurrency limit."""
         changed = 0
         with self.lock:
+            was_paused = self._all_paused
+            self._all_paused = False
             for tid in self.task_order:
                 task = self.tasks[tid]
                 if task['status'] == 'Paused':
                     self.pause_events[tid].clear()
                     task['status'] = 'Downloading' if tid in self.futures else 'Queued'
                     changed += 1
-        if changed:
+        if changed or was_paused:
             self._journal()
             self._notify_ui()
+            # Include items added while the global pause was active.
             self._process_queue()
         return changed
 
