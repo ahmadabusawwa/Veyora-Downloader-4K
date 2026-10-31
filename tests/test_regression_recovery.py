@@ -155,7 +155,7 @@ def test_recovery_confirmation_is_in_app_and_no_keeps_queue(monkeypatch, tmp_pat
         controls = app._offer_download_recovery()
         assert controls is app._confirm_controls
         assert controls['window'].title() == 'استعادة التحميلات'
-        assert 'توجد تحميلات' in controls['label'].cget('text')
+        assert controls['label'].cget('text') == app.t('توجد تحميلات غير مكتملة. هل تريد استئنافها؟\nقد يبدأ المصدر من جديد إذا لم يدعم الاستكمال أو انتهى الرابط.', 'Resume previous unfinished downloads?\nSources without range support or expired links may require a fresh transfer.')
         assert controls['yes'].cget('text') == app.t('نعم', 'Yes')
         assert controls['no'].cget('text') == app.t('لا', 'No')
         controls['no'].invoke()

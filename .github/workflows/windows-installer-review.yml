@@ -13,6 +13,28 @@ permissions:
   contents: read
   actions: read
 jobs:
+  source:
+    name: Archive exact full source even when Windows verification fails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Archive the exact checked-out source and record SHA-256
+        shell: bash
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix=Veyora-Pro/ --output=dist/Veyora-Pro-2.0.3-Full-Source.zip HEAD
+          sha256sum dist/Veyora-Pro-2.0.3-Full-Source.zip > dist/Veyora-Pro-2.0.3-Full-Source.sha256
+          test -s dist/Veyora-Pro-2.0.3-Full-Source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyora-Pro-2.0.3-Review-Full-Source
+          path: |
+            dist/Veyora-Pro-2.0.3-Full-Source.zip
+            dist/Veyora-Pro-2.0.3-Full-Source.sha256
+          compression-level: 0
+          retention-days: 90
   build:
     runs-on: windows-2022
     timeout-minutes: 45
