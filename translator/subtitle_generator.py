@@ -16,14 +16,28 @@ def format_timestamp(seconds):
 
 def generate_srt(segments, output_path):
     destination = Path(output_path)
+    prepared=[]
+    previous_start=-1
+    for segment in segments:
+        if not isinstance(segment.text,str):raise ValueError('Subtitle text must be a string')
+        text='\n'.join(line for line in segment.text.replace('\r','').splitlines() if line.strip()).strip()
+        start,end=format_timestamp(segment.start),format_timestamp(segment.end)
+        if not text:raise ValueError('Subtitle contains an empty cue')
+        if round(segment.end*1000)<=round(segment.start*1000):raise ValueError('Subtitle has no positive display duration')
+        if segment.start<previous_start:raise ValueError('Subtitle timestamps are not chronological')
+        previous_start=segment.start
+        prepared.append((start,end,text))
+    if not prepared:raise ValueError('No subtitle cues were produced')
     fd, temporary = tempfile.mkstemp(prefix='subtitle-', suffix='.partial', dir=destination.parent)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            for i, segment in enumerate(segments, 1):
-                if segment.end < segment.start:
-                    raise ValueError('Subtitle ends before it starts')
-                text = str(segment.text).replace('\r', '').replace('\n\n', '\n').strip()
-                stream.write(f'{i}\n{format_timestamp(segment.start)} --> {format_timestamp(segment.end)}\n{text}\n\n')
+            for i,(start,end,text) in enumerate(prepared,1):
+                stream.write(f'{i}\n{start} --> {end}\n{text}\n\n')
+        # Validate the actual serialized file before the atomic publish. This
+        # checks every expected cue, not whether speech must fill the video.
+        actual=parse_srt(temporary)
+        if len(actual)!=len(prepared) or any((format_timestamp(a.start),format_timestamp(a.end),a.text)!=expected for a,expected in zip(actual,prepared)):
+            raise ValueError('Subtitle serialization is incomplete')
         os.replace(temporary, destination)
     finally:
         if os.path.exists(temporary):
@@ -44,12 +58,16 @@ def parse_srt(path):
         return int(h)*3600 + int(m)*60 + int(sec) + int(ms)/1000
     for block in re.split(r'\n\s*\n', text.strip()):
         lines = block.splitlines()
-        if lines and lines[0].strip().isdigit():lines.pop(0)
+        if lines and lines[0].strip().isdigit():
+            if int(lines.pop(0).strip())!=len(segments)+1:raise ValueError('Invalid SRT cue numbering')
         if not lines:continue
         match = re.fullmatch(r'(\d{2,}:\d{2}:\d{2}[,.]\d{3}) --> (\d{2,}:\d{2}:\d{2}[,.]\d{3})', lines[0].strip())
         if not match:raise ValueError('Invalid SRT cue')
         start,end = map(seconds,match.groups())
-        if end < start:raise ValueError('Reversed SRT cue')
-        segments.append(SimpleNamespace(start=start,end=end,text='\n'.join(lines[1:])))
+        if end <= start:raise ValueError('SRT cue must have positive duration')
+        if segments and start<segments[-1].start:raise ValueError('SRT timestamps are not chronological')
+        content='\n'.join(lines[1:]).strip()
+        if not content:raise ValueError('SRT contains an empty cue')
+        segments.append(SimpleNamespace(start=start,end=end,text=content))
     if not segments:raise ValueError('SRT contains no cues')
     return segments

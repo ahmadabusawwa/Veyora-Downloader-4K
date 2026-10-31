@@ -13,7 +13,7 @@ def test_final_only_and_original_opt_in(monkeypatch,tmp_path,save_original):
     transcriber=Mock();transcriber.transcribe.return_value=([SimpleNamespace(start=0,end=1,text='Hello')],None)
     monkeypatch.setattr(pipeline,'Transcriber',lambda **kw:transcriber)
     provider=Mock();provider.translate.return_value='مرحبا';monkeypatch.setattr(pipeline,'TranslatorProvider',lambda *a:provider)
-    result=pipeline.TranslationPipeline(media,tmp_path/'out').run(save_original=save_original)
+    result=pipeline.TranslationPipeline(media,tmp_path/'out').run(save_original=save_original,enhance_speech=False)
     assert Path(result['subtitle']).exists()
     assert ('source_subtitle' in result)==save_original
     assert bool(list((tmp_path/'out').glob('*.en.srt')))==save_original
@@ -22,7 +22,7 @@ def test_final_only_and_original_opt_in(monkeypatch,tmp_path,save_original):
 def test_srt_translation_uses_cues(monkeypatch,tmp_path):
     source=tmp_path/'input.srt';source.write_text('1\n00:00:01,000 --> 00:00:02,000\nHello\n',encoding='utf8')
     provider=Mock();provider.translate.return_value='مرحبا';monkeypatch.setattr(pipeline,'TranslatorProvider',lambda *a:provider)
-    result=pipeline.TranslationPipeline(source,tmp_path/'out').run()
+    result=pipeline.TranslationPipeline(source,tmp_path/'out').run(enhance_speech=False)
     assert 'مرحبا' in Path(result['subtitle']).read_text(encoding='utf8')
     assert '00:00:01,000 --> 00:00:02,000' in Path(result['subtitle']).read_text(encoding='utf8')
 

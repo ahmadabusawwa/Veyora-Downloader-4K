@@ -57,12 +57,12 @@ def test_english_transcript_survives_translation_setup_failure(monkeypatch, tmp_
     provider.prepare.side_effect = TranslationError('Model download unavailable')
     monkeypatch.setattr(pipeline, 'TranslatorProvider', lambda *args: provider)
     with pytest.raises(TranslationError):
-        pipeline.TranslationPipeline(media, tmp_path).run()
+        pipeline.TranslationPipeline(media, tmp_path).run(enhance_speech=False)
     assert list(tmp_path.glob('*.en.srt'))
     provider.prepare.side_effect = None
     provider.translate.return_value = 'مرحبا بالعالم'
     events = []
-    output = pipeline.TranslationPipeline(media, tmp_path).run(progress=lambda *args: events.append(args))
+    output = pipeline.TranslationPipeline(media, tmp_path).run(enhance_speech=False,progress=lambda *args: events.append(args))
     assert transcriber.transcribe.call_count == 1  # retry reuses the durable English transcript
     assert 'مرحبا' in Path(output['subtitle']).read_text(encoding='utf-8')
     assert any('saved English transcript' in text for text, _ in events)

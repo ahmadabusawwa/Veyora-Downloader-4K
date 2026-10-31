@@ -21,13 +21,13 @@ def build_conversion_page(app):
     choose_button.grid(row=2,column=0,pady=6)
     options=ctk.CTkFrame(card,fg_color='transparent');options.grid(row=3,column=0,padx=22,pady=10,sticky='ew')
     for i in range(4):options.grid_columnconfigure(i,weight=1)
-    mode=ctk.StringVar(value=form.get('mode','MP4'))
+    mode=ctk.StringVar(value=form.get('mode','MP4') if form.get('mode','MP4') in ('MP4','MKV','MOV','AVI') else 'MP4')
     codec=ctk.StringVar(value=form.get('codec','h264'))
     resolution=ctk.StringVar(value=form.get('resolution','original'))
     quality=ctk.StringVar(value=form.get('quality','auto'))
     bitrate=ctk.StringVar(value=form.get('bitrate','2500k') if form.get('bitrate','2500k')!='auto' else '2500k')
     audio_bitrate=ctk.StringVar(value=form.get('audio_bitrate','192k'))
-    maps=[{'MP4':'MP4','MKV':'MKV','MP3':'MP3','WAV':'WAV'}, {'h264':'H.264','h265':'H.265'},
+    maps=[{'MP4':'MP4','MKV':'MKV','MOV':'MOV','AVI':'AVI'}, {'h264':'H.264','h265':'H.265'},
           {'original':app.t('الأصلية','Original'),'1080':'1080p','720':'720p','480':'480p','2160':'2160p'},
           {'auto':app.t('تلقائية','Automatic'),'high':app.t('عالية','High'),'medium':app.t('متوسطة','Medium'),'custom':app.t('مخصصة','Custom bitrate')}]
     internal=[mode,codec,resolution,quality];display=[];menus=[]
@@ -46,7 +46,7 @@ def build_conversion_page(app):
     custom_menu=OptionMenu(custom,variable=bitrate,values=['1000k','2500k','5000k','10000k'],width=140);custom_menu.pack(side='left')
     audio=ctk.CTkFrame(card,fg_color=app.c['panel2']);audio.grid(row=5,column=0,padx=22,pady=10,sticky='ew')
     ctk.CTkLabel(audio,text=app.t('استخراج الصوت من الفيديو','Extract audio from video'),font=('Segoe UI',14,'bold')).pack(side='left',padx=12,pady=10)
-    audio_mode=ctk.StringVar(value='MP3')
+    audio_mode=ctk.StringVar(value=form.get('audio_mode','MP3'))
     audio_menu=OptionMenu(audio,variable=audio_mode,values=['MP3','WAV'],width=100);audio_menu.pack(side='left',padx=6)
     ctk.CTkLabel(audio,text=app.t('جودة MP3','MP3 bitrate')).pack(side='left',padx=6)
     audio_quality=OptionMenu(audio,variable=audio_bitrate,values=['128k','192k','256k','320k'],width=110);audio_quality.pack(side='left',padx=6)
@@ -56,16 +56,16 @@ def build_conversion_page(app):
     buttons=ctk.CTkFrame(card,fg_color='transparent');buttons.grid(row=8,column=0,pady=10)
     output=ctk.CTkFrame(card,fg_color='transparent');output.grid(row=9,column=0,pady=(0,14))
     def save(*_):
-        app.local_tasks.save_form(kind,path=path.get(),mode=mode.get(),codec=codec.get(),resolution=resolution.get(),quality=quality.get(),bitrate=bitrate.get(),audio_bitrate=audio_bitrate.get())
-    for var in (path,*internal,bitrate,audio_bitrate):var.trace_add('write',save)
+        app.local_tasks.save_form(kind,path=path.get(),mode=mode.get(),codec=codec.get(),resolution=resolution.get(),quality=quality.get(),bitrate=bitrate.get(),audio_bitrate=audio_bitrate.get(),audio_mode=audio_mode.get())
+    for var in (path,*internal,bitrate,audio_bitrate,audio_mode):var.trace_add('write',save)
     def start(audio_only=False):
         if app.local_tasks.busy:
             status.configure(text=app.t('توجد مهمة معالجة نشطة. انتظر اكتمالها أو ألغها من صفحتها.','Another media task is active. Wait for it or cancel it on its page.'));return
         if not path.get().strip():
             status.configure(text=app.t('اختر ملف وسائط أولًا.','Choose a media file first.'));return
-        if audio_only:mode.set(audio_mode.get())
+        selected_mode=audio_mode.get() if audio_only else mode.get()
         save()
-        app.local_tasks.start(kind,Path(path.get().strip().strip('"')),app.selected_folder,'auto','ar',mode.get(),options=dict(codec=codec.get(),resolution=resolution.get(),quality=quality.get(),bitrate=bitrate.get() if quality.get()=='custom' else 'auto',audio_bitrate=audio_bitrate.get()))
+        app.local_tasks.start(kind,Path(path.get().strip().strip('"')),app.selected_folder,'auto','ar',selected_mode,options=dict(codec=codec.get(),resolution=resolution.get(),quality=quality.get(),bitrate=bitrate.get() if quality.get()=='custom' else 'auto',audio_bitrate=audio_bitrate.get()))
         render(True)
     start_button=app.button(buttons,app.t('بدء المعالجة','Start processing'),start,width=180);start_button.pack(side='left',padx=6)
     extract=app.button(audio,app.t('بدء استخراج الصوت','Start audio extraction'),lambda:start(True),width=170);extract.pack(side='right',padx=8)
@@ -86,7 +86,7 @@ def build_conversion_page(app):
         previous[0]=key
         for widget in (entry,choose_button,*menus,audio_menu,extract,audio_quality,start_button):widget.configure(state='disabled' if busy else 'normal')
         for widget in menus[1:]:widget.configure(state='disabled' if busy or mode.get() in ('MP3','WAV') else 'normal')
-        custom_menu.configure(state='normal' if not busy and mode.get() in ('MP4','MKV') and quality.get()=='custom' else 'disabled')
+        custom_menu.configure(state='normal' if not busy and mode.get() in ('MP4','MKV','MOV','AVI') and quality.get()=='custom' else 'disabled')
         audio_quality.configure(state='normal' if not busy and audio_mode.get()=='MP3' else 'disabled')
         cancel.configure(state='normal' if own and task.status=='running' else 'disabled')
         for button in (play,location):button.configure(state='normal' if task and task.status=='completed' else 'disabled')

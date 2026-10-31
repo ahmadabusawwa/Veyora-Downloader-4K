@@ -13,3 +13,14 @@
 ## 1.7.0 — supplied baseline
 
 Preserved in Git before development. Includes yt-dlp site routing/Pinterest short links, download queue, history, FFmpeg processing, four languages and 12 translation directions. Historical bundled reports are not evidence of this session's results.
+
+
+## 2.0.3 — Regression Review (development, not a production release)
+
+- Unified automatic dialogue-candidate evaluation and bounded context across local/download workflows. Legacy flags remain stored for rollback; separate manual controls are removed. Recognition model/provider unchanged.
+- Fixed auto-detected vs explicit-English cache identities, empty decoded translations, HTML entities, atomic SRT completeness/chronology/numbering checks and review-required audible-tail diagnostics.
+- Local translation output actions and selected native Arabic language labels; honest stage progress and missing-file handling.
+- Actual validated download clipping with clip-relative translation and optional long-video splitting; original files retained.
+- Removed misleading initial video metadata and invalidated late metadata/thumbnail responses when URL changes.
+- Separated video formats from audio extraction and blocked executable launches from output history.
+- Preserved previous installers; new independent review identity. Critical customer song, human singing and multilingual ASR acceptance remain incomplete until real evidence is available.

@@ -149,7 +149,7 @@ def run_local_job(kind, path, folder, source, target, mode, *, checkpoint, progr
     streams=get_ffprobe_info(path).get("streams",[])
     if mode in ("MP3","WAV") and not any(s.get("codec_type")=="audio" for s in streams):
         raise ValueError("The selected file has no audio stream")
-    if mode in ("MP4","MKV") and not any(s.get("codec_type")=="video" for s in streams):
+    if mode in ("MP4","MKV","MOV","AVI") and not any(s.get("codec_type")=="video" for s in streams):
         raise ValueError("The selected file has no video stream")
     from translator.video_renderer import run_ffmpeg, media_duration
     from translator.pipeline import _publish_file

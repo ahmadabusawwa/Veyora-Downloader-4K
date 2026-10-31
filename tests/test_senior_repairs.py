@@ -150,7 +150,7 @@ def test_actual_spawned_translation_and_worker_cleanup(tmp_path):
 
 def test_spawned_translation_cancel_stops_worker(tmp_path):
     source = tmp_path / 'large.srt'
-    source.write_text('1\n00:00:00,000 --> 00:00:01,000\nHello\n\n' * 100000, encoding='utf8')
+    source.write_text(''.join(f'{i+1}\n00:00:00,000 --> 00:00:01,000\nHello\n\n' for i in range(100000)), encoding='utf8')
     started = time.monotonic()
     def checkpoint():
         if time.monotonic() - started > .2:

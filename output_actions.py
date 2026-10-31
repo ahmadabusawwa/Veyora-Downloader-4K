@@ -6,12 +6,21 @@ import sys
 import threading
 
 
+SAFE_OUTPUT_SUFFIXES=frozenset(('.mp4','.mkv','.mov','.avi','.webm','.mp3','.wav','.m4a','.flac','.aac','.ogg','.opus','.srt','.vtt','.ass','.ssa','.txt','.log'))
+
+
+def validate_open_target(path,folder=False):
+    file=Path(path).resolve()
+    if not file.is_file():raise FileNotFoundError(str(file))
+    if not folder and file.suffix.lower() not in SAFE_OUTPUT_SUFFIXES:
+        raise ValueError('Unsafe output type; open its folder to inspect the file')
+    return file
+
+
 def launch_output(app, path, folder=False):
     def work():
         try:
-            file = Path(path).resolve()
-            if not file.is_file():
-                raise FileNotFoundError(str(file))
+            file = validate_open_target(path,folder)
             if folder:
                 if os.name=='nt':
                     subprocess.Popen([str(Path(os.environ.get('SystemRoot','C:/Windows'))/'explorer.exe'),'/select,',str(file)])

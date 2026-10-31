@@ -2,7 +2,7 @@ name: Windows EXE and Setup review
 on:
   workflow_dispatch:
   push:
-    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*', 'development/veyora-2.0.3-final-fixes']
+    branches: ['development/veyora-2-automation', 'repair/veyora-2-*', 'development/veyora-2.0.2-*', 'development/veyora-ui-*', 'development/veyora-media-*', 'development/veyora-2.0.3-final-fixes', 'development/veyora-2.0.3-regression-recovery']
 concurrency:
   group: windows-review-${{ github.ref }}
   cancel-in-progress: true
@@ -46,6 +46,10 @@ jobs:
           New-Item -ItemType Directory -Force backups | Out-Null
           Copy-Item previous-review/Veyora-Pro-Setup.exe backups/Veyora-Pro-Setup-2.0.3-previous.exe
           if ((Get-FileHash backups/Veyora-Pro-Setup-2.0.3-previous.exe).Hash -ne '6E3F669D7D8759CEEDBE876899CA898B8D79C9C0467F6265CE8B7C65A211FCB8') { throw 'Previous Setup hash mismatch' }
+          gh run download 41157259590 --repo ahmadabusawwa/Veyora-Downloader-4K --name Veyora-Pro-2.0.3-Setup --dir before-p0
+          if ($LASTEXITCODE) { throw 'Latest working Setup backup download failed' }
+          Copy-Item before-p0/Veyora-Pro-2.0.3-Setup.exe backups/Veyora-Pro-2.0.3-before-P0-Setup.exe
+          if ((Get-FileHash backups/Veyora-Pro-2.0.3-before-P0-Setup.exe).Hash -ne 'B0F65CE538912025EDA11FE7743868600A9514DAAF199B7F7508DBC3308724BA') { throw 'Latest working Setup hash mismatch' }
           Get-FileHash backups/Veyora-Pro-Setup-2.0.3-previous.exe -Algorithm SHA256 | ConvertTo-Json | Set-Content backups/previous-setup-sha256.json
       - name: Build tested EXE and Setup
         shell: pwsh
@@ -97,6 +101,8 @@ jobs:
           name: Veyora-Pro-2.0.3-Test-Report
           path: |
             dist/*Test-Report.md
+            dist/*Regression-Report.md
+            dist/*Control-Inventory.json
             dist/*File-Verification.json
             dist/actual-test-results.json
             dist/confirmation-lifecycle*/**

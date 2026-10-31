@@ -1,5 +1,6 @@
 """Offline subtitle translation using an Argos model and CTranslate2 CPU inference."""
 import os
+import html
 from performance import cpu_threads
 import threading
 from .exceptions import TranslationError
@@ -38,7 +39,7 @@ class DirectTranslatorProvider:
     def translate(self, text, target_lang=None, checkpoint=lambda: None):
         if target_lang is not None and target_lang != self.target_lang:
             raise TranslationError('Target language does not match the selected direction')
-        text = text.strip()
+        text = html.unescape(text).strip()
         checkpoint()
         if not text:
             return ''
@@ -60,10 +61,13 @@ class DirectTranslatorProvider:
                 output = result.hypotheses[0]
                 if not output or len(output) >= 512:
                     raise TranslationError('Local model returned empty or truncated translation')
-                pieces.append(tokenizer.decode(output).strip())
+                decoded=tokenizer.decode(output).strip()
+                if not decoded:raise TranslationError('Local model decoded an empty translation')
+                pieces.append(decoded)
         finally:
             _runtime_lock.release()
-        value = ' '.join(pieces)
+        value = html.unescape(' '.join(pieces)).strip()
+        if not value:raise TranslationError('Local model decoded an empty translation')
         # Bound duplicate-cue caching on long videos.
         if len(self.cache) >= 256:
             self.cache.pop(next(iter(self.cache)))

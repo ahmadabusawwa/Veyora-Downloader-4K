@@ -107,8 +107,8 @@ def test_pipeline_immutable_segments_unique_outputs(monkeypatch, tmp_path):
     monkeypatch.setattr('translator.pipeline.TranslatorProvider', lambda *args: translator)
     media = tmp_path / 'source.mp4'
     media.write_bytes(b'original')
-    first = TranslationPipeline(media, tmp_path).run()
-    second = TranslationPipeline(media, tmp_path).run()
+    first = TranslationPipeline(media, tmp_path).run(enhance_speech=False)
+    second = TranslationPipeline(media, tmp_path).run(enhance_speech=False)
     assert first['subtitle'] != second['subtitle']
     assert 'مرحبا' in Path(first['subtitle']).read_text(encoding='utf-8')
     assert segment.text == 'Hello' and media.read_bytes() == b'original'

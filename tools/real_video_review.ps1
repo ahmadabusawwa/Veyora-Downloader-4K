@@ -1,5 +1,6 @@
 param(
  [Parameter(Mandatory=$true)][string]$Application,
+ [string]$PortableApplication,
  [Parameter(Mandatory=$true)][string]$ConfigDirectory,
  [Parameter(Mandatory=$true)][string]$OutputDirectory
 )
@@ -51,7 +52,7 @@ $navigation=Get-Content -LiteralPath (Join-Path $OutputDirectory 'navigation-res
 Write-Host ('NAVIGATION_REPORT: '+($navigation | ConvertTo-Json -Depth 10 -Compress))
 if ($p.ExitCode -ne 0 -or -not $navigation.ok) { throw ('Installed navigation/playlist test failed: '+($navigation.errors -join '; ')) }
 
-foreach ($stage in @('first','restart')) {
+foreach ($stage in @('first','restart','disabled','empty')) {
  $p=Start-Process -FilePath $Application -ArgumentList @('--review-features',"`"$video`"","`"$(Join-Path $OutputDirectory 'features')`"",$stage) -PassThru
  if (-not $p.WaitForExit(120000)) { & taskkill.exe /PID $p.Id /T /F | Out-Null; throw 'Actual GUI feature review timeout' }
  $feature=Get-Content -Raw -LiteralPath (Join-Path $OutputDirectory "features/gui-features-$stage.json") | ConvertFrom-Json
@@ -107,6 +108,11 @@ $disabled=@(Get-NetFirewallProfile | Where-Object { -not $_.Enabled })
 if ($disabled.Count) { throw 'Firewall profiles must already be enabled for native offline validation.' }
 $prefix='Veyora-Review-'+[guid]::NewGuid().ToString()
 $programs=@($Application)
+if ($PortableApplication) {
+ $PortableApplication=(Resolve-Path $PortableApplication).Path
+ $programs+=@($PortableApplication)
+ $programs+=@(Get-ChildItem -LiteralPath (Split-Path $PortableApplication) -Recurse -File | Where-Object { $_.Name -in @('ffmpeg.exe','ffprobe.exe') } | ForEach-Object { $_.FullName })
+}
 $programs+=@(Get-ChildItem -LiteralPath (Split-Path $Application) -Recurse -File | Where-Object { $_.Name -in @('ffmpeg.exe','ffprobe.exe') } | ForEach-Object { $_.FullName })
 $names=@()
 $policy=New-Object -ComObject HNetCfg.FwPolicy2
@@ -160,6 +166,11 @@ try {
   $quality=Get-Content -Raw -LiteralPath (Join-Path $qualityDirectory 'media-quality-results.json') | ConvertFrom-Json
   Write-Host ('QUALITY_REPORT: '+($quality | ConvertTo-Json -Depth 10 -Compress))
   if ($p.ExitCode -ne 0 -or -not $quality.ok) { throw 'Actual installed media quality review failed' }
+  & (Join-Path $PSScriptRoot 'review_regression.ps1') -Application $Application -ConfigDirectory $ConfigDirectory -Media $video -OutputDirectory (Join-Path $OutputDirectory 'regression-installed')
+  if ($PortableApplication) {
+   if ((Get-FileHash $PortableApplication).Hash -ne (Get-FileHash $Application).Hash) { throw 'Portable and installed executable mismatch' }
+   & (Join-Path $PSScriptRoot 'review_regression.ps1') -Application $PortableApplication -ConfigDirectory $ConfigDirectory -Media $video -OutputDirectory (Join-Path $OutputDirectory 'regression-portable')
+  }
   Record-ActualClose 'translation'
   Write-Host ('PASS actual installed video recognition, translation, SRT, MP4, minimize/maximize, cancellation. UI max gap: '+$report.ui_timer.max_gap_seconds)
  } finally { [IO.File]::WriteAllBytes($settings,$before) }

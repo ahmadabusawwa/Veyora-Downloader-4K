@@ -8,10 +8,18 @@ def speech_mode(value=None):
 
 
 def should_enhance(value):
-    # The fixed 2.0.3 comparisons did not show a repeatable gain on music.
-    # Auto retains original audio until a rule passes the fixed benchmark.
-    # Manual on remains available for stereo-centered dialogue.
+    # Auto starts with the original; pipeline compares an enhanced candidate
+    # only for suspicious coverage/confidence. Explicit on is a test override.
     return speech_mode(value)=='on'
+
+
+def configured_translation_options(settings):
+    """Both entry points use automatic policy, independent of legacy UI flags.
+
+    Legacy choices remain stored as user data for rollback; they no longer disable
+    the integrated engine. Explicit pipeline arguments remain test/CLI overrides.
+    """
+    return dict(enhance_speech='auto',contextual_translation=None)
 
 
 def automatic_context(segments):

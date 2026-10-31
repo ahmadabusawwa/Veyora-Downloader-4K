@@ -55,7 +55,7 @@ def quality_review(wave,folder):
     from translator.translation_provider import TranslatorProvider,release_translation_models
     from translator.video_renderer import extract_audio,run_ffmpeg,preview_subtitles,get_ffprobe_info,burn_subtitles
     from translator.speech_enhancement import enhance_speech
-    from translator.context_segments import sentence_groups
+    from translator.recognition_policy import automatic_context as sentence_groups
     from types import SimpleNamespace
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     report=dict(ok=False,errors=[],recognition=[],translation=[],limitations=['Synthetic SAPI speech and synthesized accompaniment; human singing accuracy has not been verified.','Center enhancement is not neural separation and cannot recover all speech under music.'])
@@ -73,9 +73,12 @@ def quality_review(wave,folder):
                 return float(np.sqrt(np.mean(samples*samples)))
         report['mixture_speech_to_music_rms_db']=20*math.log10(max(1e-9,rms(folder/'reference-16k.wav')*.35)/max(1e-9,rms(folder/'original-music.wav')*.8))
         recognizer=Transcriber(language='en')
-        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal'):
+        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal','sound_effects'):
             media=folder/(name+'.wav')
-            if name in ('ordinary','quiet_speech'):
+            if name=='sound_effects':
+                run_ffmpeg(['-i',wave,'-f','lavfi','-i','anoisesrc=color=white:amplitude=0.9:sample_rate=16000:duration=30:seed=17',
+                    '-filter_complex',"[0:a]volume=0.35[s];[1:a]volume='if(lt(mod(t,3),0.3),1,0)':eval=frame[n];[s][n]amix=inputs=2:duration=first:normalize=0[out]",'-map','[out]',media])
+            elif name in ('ordinary','quiet_speech'):
                 import shutil
                 if name=='ordinary':shutil.copyfile(wave,media)
                 else:run_ffmpeg(['-i',wave,'-af','volume=0.015',media])
@@ -95,13 +98,24 @@ def quality_review(wave,folder):
                 text=' '.join(s.text.strip() for s in segments)
                 from navigation_validation import memory_bytes
                 report['recognition'].append(dict(sample=name,enhanced=enhanced,reference=reference,text=text,wer=wer(reference,text),seconds=round(time.monotonic()-started,3),working_set_bytes=memory_bytes()))
+        # Exercise the integrated selection policy on the same real samples.
+        from translator.pipeline import TranslationPipeline
+        report['automatic_policy']=[]
+        for name in ('ordinary','loud_music','sound_effects','pitch_modulated_vocal'):
+            processor=TranslationPipeline(folder/(name+'.wav'),folder/'auto')
+            processor.speech_policy='auto';processor.enhance_speech=False
+            segments,_=processor._recognize(folder/(name+'-baseline.wav'),'en',lambda:None,lambda *args:None)
+            text=' '.join(s.text.strip() for s in segments)
+            baseline=next(r for r in report['recognition'] if r['sample']==name and not r['enhanced'])
+            report['automatic_policy'].append(dict(sample=name,text=text,wer=wer(reference,text),original_wer=baseline['wer']))
+        report['automatic_policy_regression_detected']=any(r['wer']>r['original_wer'] for r in report['automatic_policy'])
         pairs={name:[r for r in report['recognition'] if r['sample']==name] for name in ('ordinary','loud_music','pitch_modulated_vocal')}
         report['speech_improvement_verified_on_fixture'] = pairs['loud_music'][1]['wer'] < pairs['loud_music'][0]['wer'] and pairs['ordinary'][1]['wer'] <= pairs['ordinary'][0]['wer']
         release_speech_model()
         from translator import benchmark_reference
         old_recognizer=benchmark_reference.Transcriber(language='en')
         report['asr_before_after']=[]
-        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal'):
+        for name in ('ordinary','light_music','loud_music','quiet_speech','pitch_modulated_vocal','sound_effects'):
             started=time.monotonic();segments,_=old_recognizer.transcribe(str(folder/(name+'-baseline.wav')))
             text=' '.join(s.text.strip() for s in segments)
             after=next(row for row in report['recognition'] if row['sample']==name and not row['enhanced'])
@@ -261,10 +275,21 @@ def gui_features_review(media,folder,stage):
             if time.monotonic()>state['deadline']:raise RuntimeError('Actual GUI feature test timeout')
             if state['phase']=='start':
                 app.show_tab('Dashboard')
+                if stage in ('disabled','empty'):
+                    assert app.url_entry.get()=='','An old URL was restored against the saved preference/empty draft'
+                    assert 'Beautiful Nature' not in app.preview_title.cget('text')
+                    report['empty_url_has_no_stale_metadata']=True
+                    report['completed_history_count']=len(app.queue_manager.get_tasks_by_status('completed'))
+                    app.settings['remember_public_links']=True
+                    finish();return
                 if stage=='restart':
                     assert app.url_entry.get()==public,'Public URL was not restored after real process restart'
                     report['public_link_restored']=True
                     assert app.settings['quality']=='720p (HD)'
+                    assert 'Beautiful Nature' not in app.preview_title.cget('text')
+                    report['restored_link_has_no_fake_analysis']=True
+                    app.settings['remember_public_links']=False
+                    app.remember_link_var.set(False)
                     app.url_entry.delete(0,'end')
                     finish();return
                 app.settings['remember_public_links']=True

@@ -7,7 +7,7 @@ def conversion_arguments(mode, options):
         return ['-vn', '-c:a', 'libmp3lame', '-b:a', options.get('audio_bitrate', '192k')]
     if mode == 'WAV':
         return ['-vn', '-c:a', 'pcm_s16le']
-    if mode not in ('MP4', 'MKV'):
+    if mode not in ('MP4', 'MKV','MOV','AVI'):
         raise ValueError('Unsupported conversion format')
     codec = options.get('codec', 'h264')
     if codec not in ('h264', 'h265'):

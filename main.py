@@ -485,6 +485,11 @@ class DownloadEngine:
         settings = task_item['settings']
 
         try:
+            if settings.get('clip_enabled'):
+                from media_clipping import clip_interval
+                clip_interval(settings.get('clip_start',''),settings.get('clip_end',''))
+                if settings.get('extract_audio'):
+                    raise ValueError('Video clipping is unavailable for audio-only downloads')
             url = normalize_url(url)
             selected_folder = selected_folder or settings['download_dir']
             ydl_opts, out_dir = DownloadEngine.build_ydl_opts(task_item, progress_callback, selected_folder)
@@ -524,11 +529,35 @@ class DownloadEngine:
             final_path = next((Path(f) for f in candidates if f and Path(f).is_file()), None)
             if final_path is None:
                 raise RuntimeError("The downloader did not return an existing final media file")
+            if settings.get('clip_enabled'):
+                from media_clipping import clip_media,clip_interval,clip_subtitles
+                progress_callback(task_item['id'],{'status':'translation','stage':'Full download finished; clipping selected interval locally','fraction':None})
+                original=final_path
+                final_path=clip_media(original,out_dir,settings['clip_start'],settings['clip_end'],checkpoint,
+                    progress=lambda fraction,eta,speed:progress_callback(task_item['id'],{'status':'translation','stage':'Clipping downloaded video','fraction':fraction}))
+                task_item['original_downloaded_file']=str(original)
+                # Existing site captions use the full-video timeline. Shift them
+                # before burning; generated speech captions instead use the clip.
+                if settings.get('download_subs') and settings.get('sub_lang') not in AUTO_TRANSLATION_MODES:
+                    start,end=clip_interval(settings['clip_start'],settings['clip_end'])
+                    for value in ((result or {}).get('requested_subtitles') or {}).values():
+                        if value.get('filepath'):
+                            full=Path(value['filepath']).with_suffix('.srt')
+                            target=final_path.with_suffix('.srt')
+                            clip_subtitles(full,start,end,target)
+                            value['filepath']=str(target)
+                            task_item['subtitle_file']=str(target)
+                            if settings.get('subtitle_mode') in ('embed','both'):
+                                from translator.video_renderer import embed_subtitles
+                                embedded=final_path.with_name(final_path.stem+'.subtitled'+final_path.suffix)
+                                embed_subtitles(final_path,target,embedded,checkpoint,subtitle_lang=settings.get('sub_lang','ar'))
+                                final_path=embedded
             task_item['downloaded_file'] = str(final_path)
             task_item['title'] = (result or {}).get('title') or final_path.stem
             if (settings.get('download_subs') and not settings.get('extract_audio')
                     and settings.get('sub_lang') in AUTO_TRANSLATION_MODES):
                 from translator.worker import run_translation
+                from translator.recognition_policy import configured_translation_options
                 progress_callback(task_item['id'], {'status': 'translation', 'stage': 'Preparing selected translation direction'})
                 outputs = run_translation(final_path, out_dir,
                     mode=settings.get('subtitle_mode', 'separate'), checkpoint=checkpoint,
@@ -537,11 +566,11 @@ class DownloadEngine:
                     output_container=settings.get('format','MKV').lower(),
                     save_original=settings.get('save_original_subtitles', False),
                     subtitle_style=settings.get('subtitle_style'),
-                    enhance_speech=settings.get('speech_policy','on' if settings.get('enhance_speech') else 'auto'),
-                    contextual_translation={'auto':None,'on':True,'off':False}.get(settings.get('context_policy','auto')),
+                    **configured_translation_options(settings),
                     progress=lambda stage, fraction=None: progress_callback(task_item['id'],
                         {'status': 'translation', 'stage': stage, 'fraction': fraction}))
                 task_item['subtitle_file'] = outputs['subtitle']
+                if outputs.get('coverage_report'):task_item['coverage_report']=outputs['coverage_report']
                 if outputs.get('video'):
                     task_item['downloaded_file'] = outputs['video']
                     task_item['translated_video'] = True
@@ -574,6 +603,12 @@ class DownloadEngine:
             if not final.is_file() or final.stat().st_size<=0 or not get_ffprobe_info(final).get('streams'):
                 raise RuntimeError('Final media output validation failed')
             checkpoint()
+            if settings.get('auto_split_clips') and not settings.get('extract_audio'):
+                from media_clipping import split_long_video
+                task_item['split_files']=split_long_video(final,out_dir,checkpoint,
+                    progress=lambda stage,fraction:progress_callback(task_item['id'],dict(status='translation',stage=stage,fraction=fraction)),
+                    subtitle=task_item.get('subtitle_file'),subtitle_mode=settings.get('subtitle_mode','separate'),
+                    language=TRANSLATION_DIRECTIONS.get(settings.get('sub_lang'),('en',settings.get('sub_lang','ar')))[1])
             completion_callback(task_item['id'], True, "Download completed successfully.")
         except Exception as exc:
             from runtime_support import friendly_error,log_failure
@@ -1994,6 +2029,9 @@ def _review_guard(function,*args):
 if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
+    if len(sys.argv)==4 and sys.argv[1]=='--review-regression-recovery':
+        from regression_validation import run_regression_review
+        sys.exit(run_regression_review(*sys.argv[2:]))
     if len(sys.argv)==5 and sys.argv[1]=='--review-close':
         from final_validation import run_close_review
         sys.exit(run_close_review(*sys.argv[2:]))

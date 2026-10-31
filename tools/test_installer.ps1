@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Setup)
 $ErrorActionPreference='Stop'
 if ($env:CI -ne 'true') { throw 'Run only on an isolated disposable Windows CI worker.' }
-$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7AA3F132-88B0-4ED0-B8D0-203031FA0011}_is1'
+$existing='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6A1C89FC-1F56-4B25-B2DE-203004F00001}_is1'
 if (Test-Path $existing) { throw 'Existing Veyora installation detected; refusing to alter it.' }
 $root=Join-Path $env:RUNNER_TEMP ('veyora-install-test-'+[guid]::NewGuid())
 $install=Join-Path $root 'application'
@@ -17,10 +17,10 @@ if (-not $env:VEYORA_TEST_MODELS -or -not (Test-Path -LiteralPath $env:VEYORA_TE
 }
 Copy-Item -Path (Join-Path $env:VEYORA_TEST_MODELS '*') -Destination (Join-Path $data 'models') -Recurse -Force
 $env:HF_HUB_OFFLINE='1'
-$legacy='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{CB5D7202-462E-4BDF-A6BD-92449F02E003}_is1'
+$legacy='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{7AA3F132-88B0-4ED0-B8D0-203031FA0011}_is1'
 if (Test-Path $legacy) { throw 'Unexpected pre-existing legacy app on the disposable worker' }
 $oldInstall=Join-Path $root 'previous-application'
-$oldSetup=Join-Path $PSScriptRoot '..\backups\Veyora-Pro-Setup-2.0.3-previous.exe'
+$oldSetup=Join-Path $PSScriptRoot '..\backups\Veyora-Pro-2.0.3-before-P0-Setup.exe'
 $p=Start-Process -FilePath (Resolve-Path $oldSetup) -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$oldInstall`"") -PassThru -Wait
 if ($p.ExitCode -ne 0) { throw 'Previous version backup installation failed' }
 $oldHash=Get-FileHash "$oldInstall\Veyora-Pro.exe"
@@ -43,7 +43,7 @@ Copy-Item -LiteralPath $selfReport -Destination (Join-Path $PSScriptRoot '..\ins
 # Actual audio-to-Arabic video test, driven through installed GUI commands.
 $reviewSettings=[IO.File]::ReadAllBytes((Join-Path $data 'settings.json'))
 try {
- & (Join-Path $PSScriptRoot 'real_video_review.ps1') -Application "$install\Veyora-Pro.exe" -ConfigDirectory $data -OutputDirectory (Join-Path $PSScriptRoot '..\real-video-review')
+ & (Join-Path $PSScriptRoot 'real_video_review.ps1') -Application "$install\Veyora-Pro.exe" -PortableApplication (Join-Path $PSScriptRoot '..\dist\Veyora-Pro\Veyora-Pro.exe') -ConfigDirectory $data -OutputDirectory (Join-Path $PSScriptRoot '..\real-video-review')
 } finally {
  [IO.File]::WriteAllBytes((Join-Path $data 'settings.json'),$reviewSettings)
  if (Test-Path (Join-Path $data 'logs')) { Copy-Item (Join-Path $data 'logs') (Join-Path $PSScriptRoot '..\real-video-review\runtime-logs') -Recurse -Force }

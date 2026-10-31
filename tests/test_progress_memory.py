@@ -122,6 +122,6 @@ def test_pipeline_releases_models_before_render_and_forwards_eta(monkeypatch, tm
         progress(.5, 90, .8)
         Path(output).write_bytes(b'rendered video')
     monkeypatch.setattr(pipeline, 'burn_subtitles', render)
-    result = pipeline.TranslationPipeline(media, tmp_path).run(mode='burn', progress=lambda *args: events.append(args))
+    result = pipeline.TranslationPipeline(media, tmp_path).run(mode='burn', enhance_speech=False, progress=lambda *args: events.append(args))
     assert Path(result['video']).read_bytes() == b'rendered video'
     assert any('50.0%' in text and '00:01:30' in text and '0.80x' in text and value == .5 for text, value in events)

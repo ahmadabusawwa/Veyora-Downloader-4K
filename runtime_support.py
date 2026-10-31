@@ -65,6 +65,10 @@ def friendly_error(exc, arabic=False, cancelled=False, record=True):
     text = str(exc).lower()
     if isinstance(exc,FileNotFoundError) or 'filenotfounderror' in text or 'no such file' in text:
         return 'الملف غير موجود. اختره مجددًا وتحقق من موقع الحفظ.' if arabic else 'The file is missing. Select it again and check the output folder.'
+    if 'unsafe output type' in text:
+        return 'لا يمكن تشغيل هذا النوع من الملفات من التطبيق. افتح مجلده لفحصه.' if arabic else 'This file type cannot be launched from the app. Open its folder to inspect it.'
+    if 'clip' in text and any(x in text for x in ('time','interval','start','end','duration')):
+        return 'تحقق من بداية القص ونهايته؛ يجب أن تكون النهاية بعد البداية وضمن مدة الفيديو.' if arabic else 'Check the clip start and end: end must follow start and remain within the video duration.'
     if 'no audio stream' in text:
         return 'الملف لا يحتوي على مسار صوت لاستخراجه.' if arabic else 'This file has no audio stream to extract.'
     if 'no video stream' in text:

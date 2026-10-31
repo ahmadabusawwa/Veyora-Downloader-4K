@@ -1064,6 +1064,9 @@ class DesktopApp(VeyoraApp):
             self._draft_revision = 0
             def remember(*_):
                 self._draft_revision += 1
+                self._pending_preview = None
+                self._analyzed_url = None
+                self._clear_preview()
                 if self._draft_save_id:
                     self.after_cancel(self._draft_save_id)
                 def save():
@@ -1151,7 +1154,7 @@ class DesktopApp(VeyoraApp):
         left_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         left_card.grid_columnconfigure(1, weight=1)
 
-        scenic = _make_scenic_preview(236, 132, "12:34")
+        scenic = Image.new("RGB",(236,132),self.c["panel2"])
         self._default_preview_ctk = ctk.CTkImage(scenic, size=(236, 132))
         self.preview_image = ctk.CTkLabel(
             left_card,
@@ -1170,7 +1173,7 @@ class DesktopApp(VeyoraApp):
 
         self.preview_title = ctk.CTkLabel(
             details,
-            text="Beautiful Nature in 4K",
+            text=self.t("حلّل رابطًا لعرض معلومات الفيديو", "Analyze a link to show video information"),
             font=("Segoe UI", 18, "bold"),
             text_color=self.c["text"],
             anchor="w",
@@ -1181,7 +1184,7 @@ class DesktopApp(VeyoraApp):
 
         self.preview_channel = ctk.CTkLabel(
             details,
-            text="Nature World",
+            text="—",
             font=("Segoe UI", 13),
             text_color=self.c["muted"],
             anchor="w",
@@ -1191,7 +1194,7 @@ class DesktopApp(VeyoraApp):
 
         self.preview_meta = ctk.CTkLabel(
             details,
-            text=self.t("12M مشاهدة  •  قبل 3 أسابيع", "12M views  •  3 weeks ago"),
+            text="",
             font=("Segoe UI", 12),
             text_color=self.c["muted"],
             anchor="w",
@@ -1204,7 +1207,7 @@ class DesktopApp(VeyoraApp):
         badges.grid(row=3, column=0, sticky="w")
         self.badge_4k = ctk.CTkLabel(
             badges,
-            text="  4K  ",
+            text="—",
             font=("Segoe UI", 11, "bold"),
             fg_color=self.c["warn_bg"],
             text_color=self.c["warn"],
@@ -1214,7 +1217,7 @@ class DesktopApp(VeyoraApp):
         self.badge_4k.pack(side="left", padx=(0, 6))
         self.badge_hdr = ctk.CTkLabel(
             badges,
-            text="  HDR  ",
+            text="—",
             font=("Segoe UI", 11, "bold"),
             fg_color=self.c["panel2"],
             text_color=self.c["text"],
@@ -1224,7 +1227,7 @@ class DesktopApp(VeyoraApp):
         self.badge_hdr.pack(side="left", padx=(0, 6))
         self.badge_fps = ctk.CTkLabel(
             badges,
-            text=" 60 FPS ",
+            text="—",
             font=("Segoe UI", 11, "bold"),
             fg_color=self.c["panel2"],
             text_color=self.c["text"],
@@ -1257,7 +1260,7 @@ class DesktopApp(VeyoraApp):
 
         self.info_duration_label = ctk.CTkLabel(
             meta_list,
-            text="◷   " + self.t("المدة: 12:34", "Duration: 12:34"),
+            text="◷   " + self.t("المدة: —", "Duration: —"),
             font=("Segoe UI", 12),
             text_color=self.c["text"],
             anchor="w",
@@ -1266,7 +1269,7 @@ class DesktopApp(VeyoraApp):
 
         self.info_platform_label = ctk.CTkLabel(
             meta_list,
-            text="▱   YouTube",
+            text="▱   —",
             font=("Segoe UI", 12),
             text_color=self.c["text"],
             anchor="w",
@@ -1275,7 +1278,7 @@ class DesktopApp(VeyoraApp):
 
         self.info_channel_label = ctk.CTkLabel(
             meta_list,
-            text="▣   Nature World",
+            text="▣   —",
             font=("Segoe UI", 12),
             text_color=self.c["muted"],
             anchor="w",
@@ -1285,7 +1288,7 @@ class DesktopApp(VeyoraApp):
         # Keep self.video_info synced for backwards compatibility with any caller/test
         self.video_info = self.info_platform_label
 
-        mini_scenic = _make_scenic_preview(108, 68, "")
+        mini_scenic = Image.new("RGB",(108,68),self.c["panel2"])
         self._mini_preview_ctk = ctk.CTkImage(mini_scenic, size=(108, 68))
         self.info_thumb_label = ctk.CTkLabel(
             info_card,
@@ -1471,8 +1474,8 @@ class DesktopApp(VeyoraApp):
         self.desc_var = ctk.BooleanVar(value=self.settings.get("save_description_ui", True))
         self._check(checks_frame, 1, self.t("تحميل الوصف", "Download description"), self.desc_var)
 
-        self.split_var = ctk.BooleanVar(value=self.settings.get("auto_split_clips_ui", True))
-        self._check(checks_frame, 2, self.t("تقسيم تلقائي للمقاطع الطويلة", "Auto-split long videos"), self.split_var)
+        self.split_var = ctk.BooleanVar(value=self.settings.get("auto_split_clips",self.settings.get("auto_split_clips_ui",False)))
+        self._check(checks_frame, 2, self.t("تقسيم الطويل إلى مقاطع 10 دقائق", "Split long videos into 10-minute parts"), self.split_var)
 
         self.video_options = ctk.CTkFrame(card, fg_color="transparent", height=1)
         self.video_options.grid(row=6, column=0, columnspan=2, sticky="ew")
@@ -2142,18 +2145,33 @@ class DesktopApp(VeyoraApp):
         self.preview_title.configure(text=self.t("جارٍ تحليل الرابط…", "Analyzing link…"))
         self.preview_meta.configure(text=self.t("يتم جلب البيانات الوصفية…", "Fetching metadata…"))
         self._metadata_busy = True
+        revision = self._draft_revision
+
+        def receive(info):
+            self._metadata_busy = False
+            if revision == self._draft_revision and self.url_entry.get().strip() == url:
+                self._analyzed_url=url
+                self.show_preview(info)
 
         def work():
             try:
                 info = DownloadEngine.fetch_metadata(normalize_url(url), self.settings.get("cookies_file", ""))
-                self._ui_callbacks.put(lambda: self.show_preview(info))
+                self._ui_callbacks.put(lambda: receive(info))
             except Exception as exc:
-                error = str(exc)
-                self._ui_callbacks.put(lambda: self.show_preview({"error": error}))
-            finally:
-                self._metadata_busy = False
+                from runtime_support import friendly_error,log_failure
+                log_failure(exc,"metadata analysis")
+                error = friendly_error(exc,self.is_arabic,record=False)
+                self._ui_callbacks.put(lambda: receive({"error": error}))
 
         threading.Thread(target=work, daemon=True, name="metadata-preview").start()
+
+    def _clear_preview(self):
+        if not hasattr(self,'preview_title'):return
+        self.preview_title.configure(text=self.t('حلّل رابطًا لعرض معلومات الفيديو','Analyze a link to show video information'))
+        for name in ('preview_channel','preview_meta','badge_4k','badge_hdr','badge_fps','info_duration_label','info_platform_label','info_channel_label'):
+            if hasattr(self,name):getattr(self,name).configure(text='—')
+        self.preview_image.configure(image=self._default_preview_ctk)
+        self.info_thumb_label.configure(image=self._mini_preview_ctk)
 
     def show_preview(self, info):
         if self.active_tab != "Dashboard":
@@ -2165,6 +2183,9 @@ class DesktopApp(VeyoraApp):
             self.video_info.configure(text=self.t("لا توجد معلومات متاحة", "No information available"))
             return
         title_str = str(info.get("title", "Video"))
+        self.badge_4k.configure(text=str(info.get("resolution") or "—"))
+        self.badge_hdr.configure(text=str(info.get("dynamic_range") or "—"))
+        self.badge_fps.configure(text=f"{info['fps']} FPS" if info.get("fps") else "—")
         uploader_str = str(info.get("uploader", "Unknown")).strip() or "Unknown"
         platform_str = str(info.get("platform", "Video")).strip() or "Video"
         duration = int(info.get("duration") or 0)
@@ -2196,6 +2217,7 @@ class DesktopApp(VeyoraApp):
             m, s = divmod(rem, 60)
             self.clip_end_var.set(f"{h:02d}:{m:02d}:{s:02d}")
 
+        preview_revision=self._draft_revision
         url = info.get("thumbnail")
         if url and str(url).startswith("https://"):
             def work():
@@ -2213,7 +2235,7 @@ class DesktopApp(VeyoraApp):
                     image.thumbnail((500, 280))
                     image = image.copy()
                     self._ui_callbacks.put(
-                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" else None
+                        lambda: self.set_preview_image(image) if self.active_tab == "Dashboard" and preview_revision==self._draft_revision else None
                     )
                 except Exception:
                     pass
@@ -2502,7 +2524,8 @@ class DesktopApp(VeyoraApp):
         elif status == "Completed":
             if size_mb:
                 parts.append(f"{size_mb:.1f} MB")
-            parts.append("اكتمل بنجاح" if self.is_arabic else "Completed successfully")
+            parts.append(("حُفظ؛ راجع تغطية الكلام" if self.is_arabic else "Saved; review speech coverage") if task.get('coverage_report') else ("اكتمل بنجاح" if self.is_arabic else "Completed successfully"))
+            if task.get('split_files'):parts.append(self.t(f"{len(task['split_files'])} مقاطع في مجلد الحفظ",f"{len(task['split_files'])} parts in output folder"))
         elif status in ("Translating","Processing / Muxing") and task.get("stage"):
             from ui_text import stage_text
             parts.append(stage_text(str(task["stage"]),self.is_arabic,shaped=False))
@@ -2937,7 +2960,7 @@ class DesktopApp(VeyoraApp):
         if convert:
             from conversion_page import build_conversion_page
             return build_conversion_page(self)
-        frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        frame = ctk.CTkScrollableFrame(self.content_frame, fg_color="transparent")
         frame.grid(row=0, column=0, sticky="nsew", padx=18, pady=14)
         frame.grid_columnconfigure(0, weight=1)
 
@@ -3039,12 +3062,38 @@ class DesktopApp(VeyoraApp):
             wraplength=720,
         )
         label.grid(row=5, column=0, pady=(2, 8))
+        from translator.recognition_policy import configured_translation_options
+        ctk.CTkLabel(card,text=self.t('تحسين الحوار والسياق يعملان تلقائيًا؛ يُحفظ الصوت الأصلي.','Dialogue analysis and translation context are automatic; original audio is preserved.'),
+            wraplength=700,text_color=self.c['muted']).grid(row=6,column=0,padx=24,pady=8)
         bar = ctk.CTkProgressBar(card, progress_color=self.c["blue"])
-        bar.grid(row=6, column=0, padx=24, pady=10, sticky="ew")
+        bar.grid(row=7, column=0, padx=24, pady=10, sticky="ew")
         bar.set(0)
 
         buttons = ctk.CTkFrame(card, fg_color="transparent")
-        buttons.grid(row=7, column=0, padx=24, pady=(0, 18))
+        buttons.grid(row=8, column=0, padx=24, pady=(0, 18))
+
+        outputs_row=ctk.CTkFrame(card,fg_color='transparent')
+        outputs_row.grid(row=9,column=0,padx=24,pady=(0,12),sticky='ew')
+        outputs_row.grid_columnconfigure(0,weight=1)
+        output_caption=ctk.CTkLabel(outputs_row,text='',anchor=self._anchor(),text_color=self.c['muted'])
+        output_caption.grid(row=0,column=0,sticky='ew')
+        output_path=ctk.StringVar(value='')
+        output_entry=ctk.CTkEntry(outputs_row,textvariable=output_path,state='readonly',fg_color=self.c['panel2'])
+        output_entry.grid(row=1,column=0,sticky='ew',pady=4)
+        output_buttons=ctk.CTkFrame(outputs_row,fg_color='transparent');output_buttons.grid(row=2,column=0,pady=4)
+        def open_result(action):
+            task=self.local_tasks.snapshot(kind)
+            if task is None or task.status!='completed':return
+            result=task.result or {}
+            value=result.get('subtitle') if action=='subtitle' else result.get('video') or (task.path if Path(task.path).suffix.lower()!='.srt' else None)
+            if action=='folder':value=result.get('video') or result.get('subtitle')
+            if value:
+                from output_actions import launch_output
+                launch_output(self,value,folder=action=='folder')
+        open_subtitle=self.ghost_button(output_buttons,self.t('فتح ملف الترجمة','Open subtitle'),lambda:open_result('subtitle'),width=170)
+        open_folder=self.ghost_button(output_buttons,self.t('فتح مجلد الحفظ','Open output folder'),lambda:open_result('folder'),width=170)
+        open_video=self.ghost_button(output_buttons,self.t('فتح الفيديو','Open video'),lambda:open_result('video'),width=190)
+        for widget in (open_subtitle,open_folder,open_video):widget.pack(side='left',padx=4);widget.configure(state='disabled')
 
         animated = [False]
         last_render = [None]
@@ -3071,8 +3120,20 @@ class DesktopApp(VeyoraApp):
                      self.t('جارٍ المعالجة…', 'Processing…') if owns_job else
                      self.t('بدء المعالجة', 'Start processing'))
             cancel_button.configure(state='normal' if owns_job and not cancelling else 'disabled')
-            for widget in (path_entry, choose_button, *option_widgets):
+            for widget in (path_entry, choose_button,*option_widgets):
                 widget.configure(state='disabled' if owns_job else 'normal')
+            completed=task is not None and task.status=='completed'
+            result=task.result or {} if completed else {}
+            final_path=result.get('video') or result.get('subtitle')
+            open_subtitle.configure(state='normal' if completed and result.get('subtitle') else 'disabled')
+            open_folder.configure(state='normal' if completed and final_path else 'disabled')
+            has_original=completed and Path(task.path).suffix.lower()!='.srt'
+            open_video.configure(state='normal' if completed and (result.get('video') or has_original) else 'disabled',
+                text=self.t('فتح الفيديو الناتج','Open output video') if result.get('video') else self.t('فتح الملف الأصلي','Open original media'))
+            output_path.set(str(final_path or ''))
+            output_caption.configure(text=self.t(f"اكتمل الحفظ • {Path(final_path).suffix[1:].upper()}",f"Saved • {Path(final_path).suffix[1:].upper()}") if final_path else self.t('النتائج متاحة بعد اكتمال المهمة بنجاح.','Outputs become available after successful completion.'))
+            if result.get('coverage_report'):
+                output_caption.configure(text=self.t('حُفظت الملفات؛ يلزم مراجعة تغطية الكلام. توجد تفاصيل في ملف coverage.json بجانب النتيجة.','Files saved; review speech coverage. See the coverage.json report beside the output.'))
             if not task:
                 return
             from ui_text import stage_text
@@ -3083,7 +3144,7 @@ class DesktopApp(VeyoraApp):
                 stage = 'تم إلغاء المهمة.' if self.is_arabic else 'Task cancelled.'
             minutes, seconds = divmod(int(task.elapsed), 60)
             suffix = self.t(f'  •  الوقت المنقضي {minutes:02}:{seconds:02}', f'  •  Elapsed {minutes:02}:{seconds:02}')
-            percentage = f'  •  {task.fraction*100:.1f}%' if task.fraction is not None else ''
+            percentage = (self.t(f'  •  تقدم المرحلة {task.fraction*100:.1f}%',f'  •  Stage progress {task.fraction*100:.1f}%') if owns_job else f'  •  {task.fraction*100:.1f}%') if task.fraction is not None else ''
             label.configure(text=stage_text(task.stage,True) + percentage + suffix if self.is_arabic and task.status not in ("failed","cancelled") else self.t(stage,stage) + percentage + suffix)
             if owns_job and task.fraction is None:
                 if not animated[0]:
@@ -3109,7 +3170,7 @@ class DesktopApp(VeyoraApp):
             values = self.local_tasks.form(kind)
             self.local_tasks.start(kind, media, self.selected_folder, values['source'], values['target'], values['mode'],
                 save_original=self.settings.get('save_original_subtitles', False),
-                options={key:var.get() for key,var in convert_options.items()} if convert else {'subtitle_style': self.settings.get('subtitle_style'), 'enhance_speech':self.settings.get('speech_policy','on' if self.settings.get('enhance_speech') else 'auto'), 'contextual_translation': {'auto':None,'off':False,'on':True}.get(self.settings.get('context_policy','auto'))})
+                options={key:var.get() for key,var in convert_options.items()} if convert else {'subtitle_style': self.settings.get('subtitle_style'),**configured_translation_options(self.settings)})
             render(True)
 
         def cancel():
@@ -3122,7 +3183,9 @@ class DesktopApp(VeyoraApp):
             fg_color=self.c['panel2'], border_width=1, border_color=self.c['edge'], width=120)
         cancel_button.pack(side='left', padx=6)
         self._local_task_controls = dict(path=path, source=src, target=dst, mode=mode,
-            start=start_button, cancel=cancel_button, status=label, progress=bar)
+            start=start_button, cancel=cancel_button, status=label, progress=bar,
+            source_menu=option_widgets[0],target_menu=option_widgets[1],
+            open_subtitle=open_subtitle,open_folder=open_folder,open_video=open_video,output_path=output_path)
         if not convert:
             from media_options_ui import subtitle_options
             self.ghost_button(buttons,self.t('مظهر ومعاينة الترجمة','Subtitle style & preview'),lambda:subtitle_options(self,path),width=190).pack(side='left',padx=6)
@@ -3168,9 +3231,6 @@ class DesktopApp(VeyoraApp):
         speech = ctk.StringVar(value=self.settings.get("speech_model", "base"))
         subtitle_mode = ctk.StringVar(value=self.settings.get("subtitle_mode", "separate"))
         bitrate = ctk.StringVar(value=self.settings.get("audio_bitrate", "320 kbps"))
-        policies={'auto':self.t('تلقائي محافظ','Conservative auto'),'off':self.t('إيقاف','Off'),'on':self.t('تشغيل يدوي','Manual on')}
-        speech_policy=ctk.StringVar(value=policies[self.settings.get('speech_policy','on' if self.settings.get('enhance_speech') else 'auto')])
-        context_policy=ctk.StringVar(value=policies[self.settings.get('context_policy','auto')])
         auto_update = ctk.BooleanVar(value=self.settings.get("auto_update_check", True))
         prereleases = ctk.BooleanVar(value=self.settings.get("allow_prereleases", False))
 
@@ -3219,14 +3279,9 @@ class DesktopApp(VeyoraApp):
             ).grid(row=row, column=0, padx=14, pady=8, sticky="w")
             ctk.CTkCheckBox(body, text="", variable=variable).grid(row=row, column=1, padx=14, pady=8, sticky="e")
 
-        add_menu(9,self.t('تحسين وضوح الكلام','Speech enhancement'),speech_policy,list(policies.values()))
-        add_menu(10,self.t('سياق الترجمة','Translation context'),context_policy,list(policies.values()))
-        ctk.CTkLabel(body,text=self.t('التلقائي لا يفرض فصل الموسيقى غير المثبت فائدته. الوضع اليدوي متاح للمقارنة.','Auto never forces unproven music separation. Manual on is available for comparison.'),wraplength=480).grid(row=11,column=0,columnspan=2,padx=12,pady=10)
+        ctk.CTkLabel(body,text=self.t('تحسين الحوار والسياق تلقائيان في محرك الترجمة.','Dialogue enhancement and context are automatic in the translation engine.'),wraplength=480).grid(row=9,column=0,columnspan=2,padx=12,pady=10)
 
         def save():
-            reverse={v:k for k,v in policies.items()}
-            self.settings['speech_policy']=reverse[speech_policy.get()]
-            self.settings['context_policy']=reverse[context_policy.get()]
             self.settings["save_original_subtitles"] = original.get()
             self.settings["save_thumbnail"] = thumb.get()
             self.settings["max_concurrent"] = max(1, min(8, int(max_concurrent.get())))
