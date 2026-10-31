@@ -40,7 +40,7 @@ def _cache_key(media, checkpoint, source_lang='en'):
         preferred = 'base'
     if preferred not in ('base','small','medium'):
         preferred = 'base'
-    prefix = ('veyora-transcript-v7-auto-compare-' + preferred + '-' + source_lang + '\0').encode('ascii')
+    prefix = ('veyora-transcript-v8-tail-retry-' + preferred + '-' + source_lang + '\0').encode('ascii')
     digest = hashlib.sha256(prefix)
     with media.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
