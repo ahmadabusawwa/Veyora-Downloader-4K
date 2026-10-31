@@ -149,7 +149,9 @@ def test_actual_download_cancel_resume_uses_range(tmp_path, monkeypatch):
     def real_http_downloader(options):
         downloader = YoutubeDL(options, auto_init=False)
         downloader.add_info_extractor(LocalTransportFixtureIE())
-        downloader.add_default_info_extractors()
+        # This transport-only fixture must not load thousands of unrelated
+        # site extractors before the timed HTTP pause/resume window begins.
+        # Other integration tests exercise the standard Generic extractor.
         return downloader
 
     monkeypatch.setattr(main, 'create_downloader', real_http_downloader)
