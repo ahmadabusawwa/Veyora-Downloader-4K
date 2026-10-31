@@ -3317,7 +3317,7 @@ class DesktopApp(VeyoraApp):
         if active:
             from confirmation import confirm
             confirm(self,'إغلاق التطبيق','Close application',
-                'توجد مهام قيد التنفيذ. هل تريد الإغلاق؟ ستُحفظ التحميلات للاستئناف عند فتح البرنامج. ستتوقف الترجمة المحلية الحالية ويمكنك بدءها مجددًا.',
+                'توجد مهام قيد التنفيذ. هل تريد إغلاق البرنامج؟\nستُحفظ التحميلات للاستئناف عند فتحه مجددًا.\nستتوقف الترجمة المحلية الحالية، ويمكنك بدءها مجددًا.',
                 'Tasks are active. Close the app? Downloads will be saved for resume on restart. The current local translation will stop and can be started again.',accepted)
         else:accepted()
 

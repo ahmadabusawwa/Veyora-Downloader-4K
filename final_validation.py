@@ -102,6 +102,16 @@ def run_final_review(media,folder):
                 w._style_controls['size_percent'].set('6');w._style_controls['color'].set('#FFEE00');w._style_controls['position'].set('top');state['phase']='preview_changed'
             elif state['phase']=='preview_changed' and app._subtitle_options_window._preview_revision>state['revision']:
                 w=app._subtitle_options_window;assert w._preview_image.cget('light_image').tobytes()!=state['image'];report['live_preview_updates_without_refresh']=True
+                from PIL import ImageChops
+                rendered=w._preview_image.cget('light_image').convert('RGB')
+                red,green,blue=rendered.split()
+                yellow=ImageChops.multiply(ImageChops.multiply(red.point(lambda v:255 if v>180 else 0),green.point(lambda v:255 if v>150 else 0)),blue.point(lambda v:255 if v<100 else 0))
+                bounds=yellow.getbbox()
+                assert bounds and bounds[3]<rendered.height*.5,'Actual yellow subtitle did not move to top'
+                report['preview_style_pixels']=dict(color='yellow',position='top',bounds=bounds)
+                state['phase']='preview_painted';state['paint_after']=time.monotonic()+.15
+            elif state['phase']=='preview_painted' and time.monotonic()>=state['paint_after']:
+                w=app._subtitle_options_window
                 ImageGrab.grab().save(folder/'arabic-live-preview.png');w.destroy()
                 # Real conversion active while the localized close dialog is rejected.
                 app.show_tab('Convert');c=app._local_task_controls;c['path'].set(str(media));c['mode'].set('MP4');c['start'].invoke()
