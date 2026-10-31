@@ -42,3 +42,9 @@ When two UI consumers requested the same thumbnail concurrently, `thumbnail_cach
 ## Confirmed additional defect fixed: stale metadata after failed repeat analysis
 
 The Dashboard's `show_preview` failure branch previously updated only the title/error line, leaving the last successful resolution, HDR/FPS, and thumbnail displayed. A repeat analysis of the same URL could also accept a previously scheduled thumbnail because the draft URL revision did not change. The failure path now clears metadata and images before presenting the error, and a monotonically increasing thumbnail generation rejects stale image callbacks even on same-URL reanalysis. A GUI regression test checks the failure reset. This does not change download or translation behavior.
+
+## Windows CI runner consistency
+
+The separate unit/UI review had intermittent missing Tcl/Tk library errors on `windows-latest` (varying missing `init.tcl`, `tk.tcl` and `auto.tcl` despite dozens of Tk checks succeeding). The Windows installer review succeeded with **227 passed and 7 skipped** on `windows-2022`, plus actual installation/uninstallation and media checks. Both Windows review workflows now target `windows-2022` for a consistent GUI test environment; the Windows review must be re-run and pass independently. This is a CI reliability change, not a claim that arbitrary Windows hosts have no Tk issues.
+
+The README and Windows build guide were also corrected to the actual **Veyora-Pro-2.0.3-Setup.exe** review build filename.
