@@ -107,6 +107,8 @@ def run_final_review(media,folder):
                 app.show_tab('Convert');c=app._local_task_controls;c['path'].set(str(media));c['mode'].set('MP4');c['start'].invoke()
                 app.request_close();assert app._confirm_controls is not None
                 assert app._confirm_controls['yes'].cget('text') not in ('Yes','No')
+                state['phase']='visible_close_dialog'
+            elif state['phase']=='visible_close_dialog' and app._confirm_controls['window'].winfo_viewable():
                 ImageGrab.grab().save(folder/'arabic-close-dialog.png');app._confirm_controls['no'].invoke()
                 app.local_tasks.cancel('Convert');state['phase']='closing_cancel'
             elif state['phase']=='closing_cancel' and not app.local_tasks.busy:
@@ -166,10 +168,20 @@ def run_close_review(media,folder,kind):
                 else:
                     task=app.local_tasks.snapshot('Translation');active=task and task.stage.startswith('Recognizing')
                 if active:
-                    app.request_close();app._confirm_controls['no'].invoke()
-                    assert not app.local_tasks.closed
-                    report['no_kept_app_open']=True
-                    app.request_close();state['yes']=True;state['yes_time']=time.monotonic();app._confirm_controls['yes'].invoke();return
+                    app.request_close();state['phase']='confirm_no'
+            elif state['phase']=='confirm_no' and app._confirm_controls['window'].winfo_viewable():
+                from PIL import ImageGrab
+                ImageGrab.grab().save(folder/'close-no.png')
+                app._confirm_controls['no'].invoke()
+                assert not app.local_tasks.closed
+                report['no_kept_app_open']=True
+                state['phase']='reopen'
+            elif state['phase']=='reopen':
+                app.request_close();state['phase']='confirm_yes'
+            elif state['phase']=='confirm_yes' and app._confirm_controls['window'].winfo_viewable():
+                from PIL import ImageGrab
+                ImageGrab.grab().save(folder/'close-yes.png')
+                state['yes']=True;state['yes_time']=time.monotonic();app._confirm_controls['yes'].invoke();return
             app.after(50,poll)
         except Exception:
             import traceback
