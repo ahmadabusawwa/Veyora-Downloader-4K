@@ -3044,7 +3044,7 @@ class DesktopApp(VeyoraApp):
         self.settings["download_subs"] = self.sub_var.get()
         self.settings["save_thumbnail"] = self.thumb_var.get()
         try:
-            maximum = max(1, min(8, int(self.concurrent_var.get())))
+            maximum = max(1, min(5, int(self.concurrent_var.get())))
         except ValueError:
             maximum = self.settings.get("max_concurrent", 3)
         self.settings["max_concurrent"] = maximum
@@ -3399,7 +3399,7 @@ class DesktopApp(VeyoraApp):
         def save():
             self.settings["save_original_subtitles"] = original.get()
             self.settings["save_thumbnail"] = thumb.get()
-            self.settings["max_concurrent"] = max(1, min(8, int(max_concurrent.get())))
+            self.settings["max_concurrent"] = max(1, min(5, int(max_concurrent.get())))
             self.settings["performance_mode"] = performance.get()
             self.settings["speech_model"] = speech.get()
             self.settings["subtitle_mode"] = subtitle_mode.get()

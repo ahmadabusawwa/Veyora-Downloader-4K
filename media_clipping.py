@@ -1,5 +1,6 @@
 """Validated local clipping after download; never misrepresents partial retrieval."""
 import math
+import re
 from pathlib import Path
 import tempfile
 import uuid
@@ -9,21 +10,44 @@ from types import SimpleNamespace
 
 
 def time_seconds(value):
-    fields=str(value).strip().split(':')
-    if not 1<=len(fields)<=3:raise ValueError('Invalid clip time; use HH:MM:SS')
-    try:numbers=[float(v) for v in fields]
-    except ValueError as exc:raise ValueError('Invalid clip time; use HH:MM:SS') from exc
-    if any(not math.isfinite(v) or v<0 for v in numbers) or any(v>=60 for v in numbers[1:]):
+    """Parse S, MM:SS or HH:MM:SS with optional fractional *seconds*.
+
+    Do not accept Python float syntax such as 1e1, +5 or 1_0:
+    those look like typos in the time editor but previously changed the clip.
+    Unicode decimal digits (including Arabic-Indic) are valid.
+    """
+    fields = str(value).strip().split(':')
+    if not 1 <= len(fields) <= 3:
         raise ValueError('Invalid clip time; use HH:MM:SS')
-    return sum(v*60**i for i,v in enumerate(reversed(numbers)))
+    numbers = []
+    for index, field in enumerate(fields):
+        pattern = r'\d+(?:\.\d+)?' if index == len(fields) - 1 else r'\d+'
+        if re.fullmatch(pattern, field) is None:
+            raise ValueError('Invalid clip time; use HH:MM:SS')
+        try:
+            number = float(field)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError('Invalid clip time; use HH:MM:SS') from exc
+        if not math.isfinite(number) or number < 0 or (index > 0 and number >= 60):
+            raise ValueError('Invalid clip time; use HH:MM:SS')
+        numbers.append(number)
+    return sum(number * 60 ** i for i, number in enumerate(reversed(numbers)))
 
 
-def clip_interval(start,end,duration=None):
-    start,end=time_seconds(start),time_seconds(end)
-    if end<=start:raise ValueError('Clip end must be later than start')
-    if duration is not None and (start>=duration or end>duration+.05):
-        raise ValueError('Clip interval exceeds the media duration')
-    return start,end
+def clip_interval(start, end, duration=None):
+    start, end = time_seconds(start), time_seconds(end)
+    if end <= start:
+        raise ValueError('Clip end must be later than start')
+    if duration is not None:
+        try:
+            available = float(duration)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError('Media duration is invalid') from exc
+        if not math.isfinite(available) or available <= 0:
+            raise ValueError('Media duration is invalid')
+        if start >= available or end > available + .05:
+            raise ValueError('Clip interval exceeds the media duration')
+    return start, end
 
 
 def clip_subtitles(path,start,end,output):

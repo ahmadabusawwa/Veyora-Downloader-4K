@@ -113,7 +113,14 @@ def _run_ffmpeg(arguments, checkpoint, cwd, duration, progress, stall_timeout=30
                 progress(fraction, eta, speed)
         try:
             while True:
+                # A pause checkpoint may wait minutes before returning.
+                # Do not mistake this intentional wait for a stalled encode.
+                before_checkpoint = time.monotonic()
                 checkpoint()
+                blocked = time.monotonic() - before_checkpoint
+                if blocked > 0:
+                    last_advance += blocked
+                    started += blocked
                 update()
                 if process.poll() is not None:
                     break

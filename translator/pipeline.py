@@ -56,10 +56,18 @@ def _read_cache(path):
         if not isinstance(value, list) or not value:
             return None
         result = []
+        previous_start = -1.0
         for item in value:
             start, end, text = item['start'], item['end'], item['text']
-            if not (isinstance(text, str) and text.strip() and math.isfinite(start) and math.isfinite(end) and 0 <= start < end):
+            # A corrupt/out-of-order cache should trigger fresh recognition,
+            # not fail late when creating the final subtitle file.
+            if not (isinstance(start, (int, float)) and not isinstance(start, bool)
+                    and isinstance(end, (int, float)) and not isinstance(end, bool)
+                    and isinstance(text, str) and text.strip()
+                    and math.isfinite(start) and math.isfinite(end)
+                    and 0 <= start < end and start >= previous_start):
                 return None
+            previous_start = start
             result.append(SimpleNamespace(start=start, end=end, text=text))
         return result
     except (OSError, ValueError, TypeError, KeyError):
