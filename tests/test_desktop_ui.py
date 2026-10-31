@@ -259,9 +259,6 @@ def test_video_language_labels_are_logical_arabic_not_pre_shaped():
 def test_video_language_native_menu_renders_logical_auto_detect():
     """Protect the actual Windows selected label and dropdown entry."""
     import sys
-    import customtkinter as ctk
-    from ui_controls import OptionMenu
-
     if not sys.platform.startswith("win"):
         pytest.skip("Native Windows dropdown regression check")
 
@@ -269,14 +266,14 @@ def test_video_language_native_menu_renders_logical_auto_detect():
     try:
         app.settings["ui_language"] = "ar"
         labels = app._source_labels()
-        variable = ctk.StringVar(master=app, value=labels[0])
-        menu = OptionMenu(app, values=labels, variable=variable)
-        try:
-            assert menu._text_label.cget("text") == "🌐 اكتشاف تلقائي"
-            assert menu._dropdown_menu._menu.entrycget(0, "label") == "🌐 اكتشاف تلقائي"
-            menu.set(labels[1])
-            assert menu._text_label.cget("text") == "(ar) العربية"
-        finally:
-            menu.destroy()
+        # Reuse the built-in widget instead of creating an extra Tk menu/root.
+        menu = app.source_menu
+        menu.configure(values=labels)
+        menu.set(labels[0])
+        assert menu._text_label.cget("text") == "🌐 اكتشاف تلقائي"
+        # DropdownMenu itself subclasses tkinter.Menu; it has no '_menu' member.
+        assert menu._dropdown_menu.entrycget(0, "label") == "🌐 اكتشاف تلقائي"
+        menu.set(labels[1])
+        assert menu._text_label.cget("text") == "(ar) العربية"
     finally:
         app._on_close()
