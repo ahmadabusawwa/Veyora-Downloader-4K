@@ -125,3 +125,22 @@ def test_pipeline_releases_models_before_render_and_forwards_eta(monkeypatch, tm
     result = pipeline.TranslationPipeline(media, tmp_path).run(mode='burn', enhance_speech=False, progress=lambda *args: events.append(args))
     assert Path(result['video']).read_bytes() == b'rendered video'
     assert any('50.0%' in text and '00:01:30' in text and '0.80x' in text and value == .5 for text, value in events)
+
+
+def test_queue_ui_progress_is_coalesced_without_dropping_latest_state(monkeypatch):
+    import main
+    manager = object.__new__(main.DownloadQueueManager)
+    manager.ui_dirty = threading.Event()
+    manager._next_ui_refresh = 0.0
+    times = iter([10.0, 10.1, 10.26])
+    monkeypatch.setattr(main.time, "monotonic", lambda: next(times))
+    rendered = []
+    manager.update_ui_callback = lambda: rendered.append("refresh")
+    manager.ui_dirty.set()
+    manager.poll_ui()
+    assert len(rendered) == 1 and not manager.ui_dirty.is_set()
+    manager.ui_dirty.set()
+    manager.poll_ui()
+    assert len(rendered) == 1 and manager.ui_dirty.is_set()
+    manager.poll_ui()
+    assert len(rendered) == 2 and not manager.ui_dirty.is_set()

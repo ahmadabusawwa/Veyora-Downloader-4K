@@ -651,6 +651,8 @@ class DownloadQueueManager:
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.pause_events, self.cancel_events = {}, {}
         self.ui_dirty = threading.Event()
+        # Coalesce progress bursts: Tk redraws must not run 10+ times a second.
+        self._next_ui_refresh = 0.0
         self.closed = False
         from recovery_store import RecoveryStore, recovery_path
         self.recovery = RecoveryStore(recovery_path(CONFIG_DIR))
@@ -707,9 +709,15 @@ class DownloadQueueManager:
         self.ui_dirty.set()
 
     def poll_ui(self):
-        if self.ui_dirty.is_set():
-            self.ui_dirty.clear()
-            self.update_ui_callback()
+        if not self.ui_dirty.is_set():
+            return
+        now = time.monotonic()
+        if now < self._next_ui_refresh:
+            # Leave the dirty flag set so the latest state is rendered later.
+            return
+        self._next_ui_refresh = now + 0.25
+        self.ui_dirty.clear()
+        self.update_ui_callback()
 
     def add_task(self, url, settings, title="Resolving...", selected_folder=None, video_id="", thumbnail=""):
         if not is_valid_url(url):
@@ -1652,13 +1660,22 @@ class VeyoraApp(ctk.CTk):
                               self._card_title_labels, self._card_buttons, self._card_snapshots):
                     cache.pop(tid, None)
             elif tid not in visible:
-                self.card_widgets[tid].grid_remove()
+                card = self.card_widgets[tid]
+                if getattr(card, '_visible_row', None) is not None:
+                    card.grid_remove()
+                    card._visible_row = None
         for index, task in enumerate(tasks):
             tid = task['id']
             if tid not in self.card_widgets:
                 self.create_download_card(task, index)
+                self.card_widgets[tid]._visible_row = index
             else:
-                self.card_widgets[tid].grid(row=index)
+                card = self.card_widgets[tid]
+                # Re-gridding every card on every progress event causes Tk
+                # layout churn and overlapping redraws for large playlists.
+                if getattr(card, '_visible_row', None) != index:
+                    card.grid(row=index)
+                    card._visible_row = index
             self._update_download_card(task)
         if not hasattr(self, '_empty_download_label') or not self._empty_download_label.winfo_exists():
             self._empty_download_label = ctk.CTkLabel(self.downloads_scroll, text="No downloads in this category.")

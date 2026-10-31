@@ -2649,13 +2649,13 @@ class DesktopApp(VeyoraApp):
             if status in ("Failed", "Cancelled")
             else self.c["blue"]
         )
-        self._card_progress_bars[tid].configure(progress_color=bar_color)
-
-        if tid in getattr(self, "_card_status_labels", {}):
-            status_lbl, status_icon = self._card_status_labels[tid]
-            status_lbl.configure(text=status_display, text_color=bar_color)
-            icon_char = "✓" if status == "Completed" else ("▲" if status in ("Failed", "Cancelled") else "↓")
-            status_icon.configure(text=icon_char, text_color=bar_color)
+        if status != old.get("status"):
+            self._card_progress_bars[tid].configure(progress_color=bar_color)
+            if tid in getattr(self, "_card_status_labels", {}):
+                status_lbl, status_icon = self._card_status_labels[tid]
+                status_lbl.configure(text=status_display, text_color=bar_color)
+                icon_char = "✓" if status == "Completed" else ("▲" if status in ("Failed", "Cancelled") else "↓")
+                status_icon.configure(text=icon_char, text_color=bar_color)
 
         if status != old.get("status") or bool(task.get("subtitle_file")) != old.get("subtitle_available"):
             buttons = self._card_buttons[tid]
@@ -2695,12 +2695,15 @@ class DesktopApp(VeyoraApp):
             btn = getattr(self, "filter_buttons", {}).get(value)
             if btn is not None and btn.winfo_exists():
                 selected = value == self.active_filter
-                btn.configure(
-                    text=f"{self.t(ar, en)} ({counts.get(value, 0)})",
-                    fg_color=self.c["blue"] if selected else self.c["panel2"],
-                    text_color="#ffffff" if selected else self.c["muted"],
-                    border_color=self.c["blue"] if selected else self.c["edge"],
-                )
+                view_state = (counts.get(value, 0), selected, self.is_arabic)
+                if getattr(btn, "_view_state", None) != view_state:
+                    btn.configure(
+                        text=f"{self.t(ar, en)} ({counts.get(value, 0)})",
+                        fg_color=self.c["blue"] if selected else self.c["panel2"],
+                        text_color="#ffffff" if selected else self.c["muted"],
+                        border_color=self.c["blue"] if selected else self.c["edge"],
+                    )
+                    btn._view_state = view_state
 
     def render_download_items(self):
         try:
