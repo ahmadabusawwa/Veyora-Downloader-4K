@@ -524,12 +524,15 @@ class DesktopApp(VeyoraApp):
     # ------------------------------------------------------------------
     def _source_labels(self) -> list[str]:
         if self.is_arabic:
+            # CTkOptionMenu uses a native Tk Label and a native Windows menu.
+            # Pass logical Unicode Arabic, not pre-shaped visual/BiDi text.
+            # The normal self.t() helper is for canvas-rendered labels only.
             return [
-                self.t("🌐 اكتشاف تلقائي", "Auto detect"),
-                self.t("(ar) العربية", "Arabic (ar)"),
-                self.t("(en) الإنجليزية", "English (en)"),
-                self.t("(tr) التركية", "Turkish (tr)"),
-                self.t("(ko) الكورية", "Korean (ko)"),
+                "🌐 اكتشاف تلقائي",
+                "(ar) العربية",
+                "(en) الإنجليزية",
+                "(tr) التركية",
+                "(ko) الكورية",
             ]
         return ["Auto detect"] + [f"{name} ({code})" for code, name in LANGUAGES.items()]
 
@@ -544,7 +547,7 @@ class DesktopApp(VeyoraApp):
             code = "ar"
         if self.is_arabic:
             ar_name = LANGUAGE_NAMES_AR.get(code, "العربية")
-            return self.t(f"({code}) {ar_name}", f"{LANGUAGES[code]} ({code})")
+            return f"({code}) {ar_name}"
         return f"{LANGUAGES[code]} ({code})"
 
     @staticmethod
