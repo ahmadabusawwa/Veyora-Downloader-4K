@@ -694,7 +694,7 @@ class DesktopApp(VeyoraApp):
         right.grid(row=0, column=3, padx=(10, 18), pady=10, sticky="e")
         self.version_badge = ctk.CTkLabel(
             right,
-            text="v1.7.0 → v" + APP_VERSION,
+            text="v" + APP_VERSION,
             fg_color=self.c["chip"],
             text_color=self.c["muted"],
             corner_radius=14,
@@ -706,7 +706,7 @@ class DesktopApp(VeyoraApp):
 
         self.update_chip = self.button(
             right,
-            f"v{APP_VERSION} " + self.t("يتوفر تحديث جديد", "Check updates"),
+            f"v{APP_VERSION} " + self.t("فحص التحديثات", "Check updates"),
             lambda: getattr(self, "updater", None) and self.updater.check(True),
             fg_color=self.c["blue"],
             hover_color=self.c["blue_hover"],
@@ -1175,7 +1175,7 @@ class DesktopApp(VeyoraApp):
 
         self.preview_title = ctk.CTkLabel(
             details,
-            text=self.t("حلّل رابطًا لعرض معلومات الفيديو", "Analyze a link to show video information"),
+            text=self.t("لا توجد معاينة", "No preview"),
             font=("Segoe UI", 18, "bold"),
             text_color=self.c["text"],
             anchor="w",
@@ -2169,7 +2169,7 @@ class DesktopApp(VeyoraApp):
 
     def _clear_preview(self):
         if not hasattr(self,'preview_title'):return
-        self.preview_title.configure(text=self.t('حلّل رابطًا لعرض معلومات الفيديو','Analyze a link to show video information'))
+        self.preview_title.configure(text=self.t('لا توجد معاينة','No preview'))
         for name in ('preview_channel','preview_meta','badge_4k','badge_hdr','badge_fps','info_duration_label','info_platform_label','info_channel_label'):
             if hasattr(self,name):getattr(self,name).configure(text='—')
         self.preview_image.configure(image=self._default_preview_ctk)

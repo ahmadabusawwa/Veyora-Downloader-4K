@@ -37,14 +37,21 @@ def run_regression_review(media,folder):
         report['ok']=not report['errors']
         (folder/'regression-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf8')
         app._on_close()
-    def capture_menu():
+    def capture_menu(window_id):
         # Screenshots and native input only. No Tk objects enter this thread.
         try:
             time.sleep(.4)
             ImageGrab.grab().save(folder/'expanded-language.png')
         finally:
-            ctypes.windll.user32.keybd_event(0x1B,0,0,0)
-            ctypes.windll.user32.keybd_event(0x1B,0,2,0)
+            from ctypes import wintypes
+            api=ctypes.WinDLL('user32',use_last_error=True)
+            api.GetAncestor.argtypes=[wintypes.HWND,wintypes.UINT];api.GetAncestor.restype=wintypes.HWND
+            api.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM];api.PostMessageW.restype=wintypes.BOOL
+            owner=api.GetAncestor(window_id,2) or window_id
+            # Cancel the menu owned by this application, not whichever external
+            # window happens to have keyboard focus on the CI desktop.
+            api.PostMessageW(owner,0x1F,0,0) # WM_CANCELMODE
+            api.PostMessageW(owner,0x100,0x1B,0)
             menu_done.set()
     def acknowledge_missing_file():
         # Drive the real native error dialog on the disposable Windows desktop.
@@ -94,6 +101,7 @@ def run_regression_review(media,folder):
 
     def poll():
         try:
+            (folder/'regression-state.json').write_text(json.dumps(dict(phase=state['phase'],elapsed=180-(state['deadline']-time.monotonic())),indent=2),encoding='utf8')
             assert time.monotonic()<state['deadline'],'Native regression review timed out at '+state['phase']
             if state['phase']=='recovery':
                 threading.Thread(target=inspect_recovery_dialog,daemon=True,name='native-recovery-dialog-review').start()
@@ -117,7 +125,7 @@ def run_regression_review(media,folder):
                 ImageGrab.grab().save(folder/'selected-language.png')
                 menu=app.source_menu
                 for index,value in enumerate(menu._values):assert menu._dropdown_menu.entrycget(index,'label')==native_label(value)
-                threading.Thread(target=capture_menu,daemon=True,name='native-menu-capture').start()
+                threading.Thread(target=capture_menu,args=(app.winfo_id(),),daemon=True,name='native-menu-capture').start()
                 state['phase']='menu_wait'
                 menu._dropdown_menu.post(menu.winfo_rootx(),menu.winfo_rooty()+menu.winfo_height())
             elif state['phase']=='menu_wait' and menu_done.is_set():
@@ -223,5 +231,9 @@ def run_regression_review(media,folder):
         except Exception:
             import traceback
             finish(traceback.format_exc())
-    app.after(300,poll);app.mainloop()
+    import faulthandler
+    with (folder/'hang-traces.log').open('w',encoding='utf8') as trace:
+        faulthandler.dump_traceback_later(90,repeat=True,file=trace)
+        try:app.after(300,poll);app.mainloop()
+        finally:faulthandler.cancel_dump_traceback_later()
     return 0 if report['ok'] else 1

@@ -210,3 +210,22 @@ def test_audio_navigation_keeps_only_correct_sidebar_item_selected(monkeypatch):
         app.set_mode('Video')
         assert [key for key,button in app._sidebar_buttons.items() if getattr(button,'_veyora_selected',False)]==['video']
     finally:app._on_close()
+
+
+def test_srt_without_association_opens_notepad_before_shell_chooser(monkeypatch,tmp_path):
+    import output_actions
+    calls=[];file=tmp_path/'نتيجة.srt';file.write_text('subtitle')
+    monkeypatch.setattr(output_actions,'windows_association_present',lambda suffix:False)
+    monkeypatch.setattr(output_actions.subprocess,'Popen',lambda args:calls.append(args))
+    monkeypatch.setattr(output_actions.os,'startfile',lambda *args:pytest.fail('Must not invoke the shell chooser'),raising=False)
+    output_actions.open_windows_file(file)
+    assert len(calls)==1 and calls[0][0].endswith('notepad.exe') and calls[0][1]==str(file)
+
+
+def test_srt_with_association_keeps_the_users_default_app(monkeypatch,tmp_path):
+    import output_actions
+    calls=[];file=tmp_path/'caption.srt'
+    monkeypatch.setattr(output_actions,'windows_association_present',lambda suffix:True)
+    monkeypatch.setattr(output_actions.os,'startfile',lambda value:calls.append(value),raising=False)
+    output_actions.open_windows_file(file)
+    assert calls==[str(file)]
