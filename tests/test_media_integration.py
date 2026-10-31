@@ -70,8 +70,10 @@ def test_actual_ytdlp_http_download(sample, tmp_path):
         thread.join()
 
 
-def test_actual_download_cancel_resume_uses_range(tmp_path):
+def test_actual_download_cancel_resume_uses_range(tmp_path, monkeypatch):
     import time
+    from yt_dlp import YoutubeDL
+    from yt_dlp.extractor.common import InfoExtractor
     from translator.video_renderer import run_ffmpeg
     valid=tmp_path/'valid-resume.mp4'
     run_ffmpeg(['-f','lavfi','-i','testsrc2=s=640x360:r=15:d=4','-c:v','libx264','-crf','0','-preset','ultrafast','-threads','2',valid])
@@ -131,7 +133,65 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
                 pass
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Media)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    task = dict(id='resume', url=f'http://127.0.0.1:{server.server_port}/video.mp4', title='Test',
+    # Test the production yt-dlp HTTP downloader and app checkpoint hooks,
+    # not GenericIE's unrelated/variable website-probing heuristics. A local
+    # extractor supplies only deterministic metadata; bytes still come through
+    # real HTTP, .part files, Range resume and the real download engine.
+    media_url = f'http://127.0.0.1:{server.server_port}/video.mp4'
+    class LocalTransportFixtureIE(InfoExtractor):
+        IE_NAME = 'Veyora:HTTPResumeFixture'
+        _VALID_URL = r'https?://127[.]0[.]0[.]1:[0-9]+/fixture
+        settings={**main.DEFAULT_SETTINGS, 'download_subs': False, 'save_thumbnail': False,
+                  'download_dir': str(tmp_path)})
+    pause, cancel = threading.Event(), threading.Event()
+    paused = threading.Event()
+    result = []
+    events = []
+    def progress(tid, data):
+        events.append((data.get('status'), data.get('downloaded_bytes'), data.get('total_bytes')))
+        if data.get('downloaded_bytes', 0) > 65536:
+            pause.set()
+            paused.set()
+    thread = threading.Thread(target=main.DownloadEngine.download_task,
+        args=(task, progress, lambda *a: result.append(a), pause, cancel, str(tmp_path)))
+    try:
+        thread.start()
+        assert paused.wait(10), {'result': result, 'ranges': list(ranges), 'head_requests': list(head_requests), 'events': events[-30:], 'alive': thread.is_alive(), 'part_files': [(p.name,p.stat().st_size) for p in tmp_path.glob('*.part')]}
+        time.sleep(.15)
+        assert thread.is_alive() and not result
+        cancel.set()  # cancelling a paused worker must unblock it
+        thread.join(10)
+        assert not thread.is_alive() and result[0][1] is False
+        parts = list(tmp_path.glob('*.part'))
+        assert parts and 0 < parts[0].stat().st_size < len(payload)
+        pause.clear()
+        cancel.clear()
+        requests_before_resume = len(ranges)
+        resumed = []
+        main.DownloadEngine.download_task(task, lambda *_: None, lambda *a: resumed.append(a),
+            pause, cancel, str(tmp_path))
+        assert resumed[0][1], resumed
+        assert Path(task['downloaded_file']).read_bytes() == payload
+        assert any(start > 0 for start in ranges[requests_before_resume:]), ranges
+    finally:
+        cancel.set()
+        thread.join(10)
+        server.shutdown()
+        server.server_close()
+
+
+        def _real_extract(self, url):
+            return dict(id='authorized-resume', title='Authorized resume fixture',
+                        url=media_url, ext='mp4')
+
+    def real_http_downloader(options):
+        downloader = YoutubeDL(options, auto_init=False)
+        downloader.add_info_extractor(LocalTransportFixtureIE())
+        downloader.add_default_info_extractors()
+        return downloader
+
+    monkeypatch.setattr(main, 'create_downloader', real_http_downloader)
+    task = dict(id='resume', url=f'http://127.0.0.1:{server.server_port}/fixture', title='Test',
         settings={**main.DEFAULT_SETTINGS, 'download_subs': False, 'save_thumbnail': False,
                   'download_dir': str(tmp_path)})
     pause, cancel = threading.Event(), threading.Event()
