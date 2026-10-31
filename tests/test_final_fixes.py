@@ -163,7 +163,10 @@ def test_confirmation_reuses_window_and_resolves_once(monkeypatch):
     try:
         first=None;binding=None
         for index in range(20):
+            app.settings['ui_language']='en' if index%2==0 else 'ar'
             controls=confirm(app,'تأكيد','Confirm','تجربة','Test',lambda i=index:accepted.append(i))
+            assert controls['yes'].cget('text')==app.t('نعم','Yes')
+            assert controls['no'].cget('text')==app.t('لا','No')
             if first is None:
                 first=controls['window'];binding=app.bind_all('<Button-1>')
             assert controls['window'] is first

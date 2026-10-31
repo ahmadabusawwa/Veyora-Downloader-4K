@@ -22,7 +22,7 @@ def confirm(app,ar_title,en_title,ar_body,en_body,on_yes,on_no=None):
         controls=app._confirmation_window=dict(window=window,yes=yes,no=no,label=label)
     window,yes,no,label=(controls[key] for key in ('window','yes','no','label'))
     window.title(ar_title if app.is_arabic else en_title)
-    label.configure(text=app.t(ar_body,en_body))
+    label.configure(text=app.t(ar_body,en_body),justify=app._justify(),anchor=app._anchor())
     resolved=False
     def finish(accepted):
         nonlocal resolved
@@ -32,8 +32,8 @@ def confirm(app,ar_title,en_title,ar_body,en_body,on_yes,on_no=None):
         window.grab_release();window.withdraw();app._confirm_controls=None
         if accepted:on_yes()
         elif on_no:on_no()
-    yes.configure(command=lambda:finish(True),state='normal')
-    no.configure(command=lambda:finish(False),state='normal')
+    yes.configure(text=app.t('نعم','Yes'),command=lambda:finish(True),state='normal')
+    no.configure(text=app.t('لا','No'),command=lambda:finish(False),state='normal')
     window.protocol('WM_DELETE_WINDOW',lambda:finish(False));window.deiconify();window.lift();window.grab_set()
     app._confirm_controls=controls
     return controls

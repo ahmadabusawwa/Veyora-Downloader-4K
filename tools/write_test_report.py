@@ -12,6 +12,9 @@ records={name:read(path) for name,path in {
  'recovery':'real-video-review/recovery/recovery-results.json','video':'real-video-review/real-video-results.json',
  'quality':'real-video-review/quality/media-quality-results.json','close_idle':'real-video-review/close-idle/close-results.json',
  'close_download':'real-video-review/close-download/close-results.json','close_translation':'real-video-review/close-translation/close-results.json'}.items()}
+lifecycle=read('dist/confirmation-lifecycle-results.json')
+if lifecycle:
+ records['confirmation_lifecycle']=dict(ok=all(row['exit']==0 and row['result']==dict(round=10,callbacks=10) for row in lifecycle if row['mode']=='after'),trials=lifecycle)
 unit=None
 try:
  xml=ET.parse(root/'windows-tests.xml').getroot();suites=[xml] if xml.tag=='testsuite' else list(xml)
@@ -50,6 +53,8 @@ for name,record in records.items():
  if record and record.get('errors'):report+='\nتفاصيل '+name+':\n```\n'+'\n'.join(record['errors'])+'\n```\n'
 video=records.get('video') or {};nav=records.get('navigation') or {};quality=records.get('quality') or {}
 report+=f'''\nالترجمة الفعلية: عدد مقاطع SRT={video.get('cue_count','غير متحقق')}، مدة الفيديو={video.get('duration_seconds','غير متحقق')} ثانية، زمن الإلغاء={video.get('cancellation_seconds','غير متحقق')} ثانية. التنقل أثناء الكلام={video.get('navigation_during_speech_steps','غير متحقق')}، ودورات التصغير والاستعادة={video.get('minimize_restore_cycles','غير متحقق')}. قياسات UI: `{video.get('ui_timer','غير متحقق')}`.
+
+كشف اختبار EXE السابق انهيارًا أصليًا 0xC0000005 داخل Tk mainloop بعد قبول نافذة تأكيد قائمة التشغيل وتدميرها مباشرة. سُجلت جميع الخيوط وموضع المرحلة. أُبقيت نافذة تأكيد واحدة قابلة لإعادة الاستخدام مع سحبها وتحرير grab، ومنع تكرار القرار وتحديث لغة الأزرار عند كل عرض. مقارنة دورة الحياة قبل/بعد في حلقات Tk فعلية: `{lifecycle if lifecycle else 'غير منفذة'}`. لا يكفي نجاح هذه المقارنة لاعتماد EXE؛ نتائج التنقل المثبت أعلاه هي اختبار مستقل.
 
 صفحات التنقل: `{nav.get('build_counts','غير متحقق')}`، تغير الذاكرة={nav.get('memory_growth_bytes','غير متحقق')} بايت. لا يُعد ذلك ضمانًا لعدم وجود تسرب على كل الأجهزة والفترات.
 

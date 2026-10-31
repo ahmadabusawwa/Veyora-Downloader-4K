@@ -94,7 +94,10 @@ def test_actual_download_cancel_resume_uses_range(tmp_path):
                 for i in range(start, len(payload), 16384):
                     self.wfile.write(payload[i:i + 16384])
                     self.wfile.flush()
-                    time.sleep(.003)
+                    # The application's UI progress is throttled to 200 ms.
+                    # Keep this real transfer longer than one update so pause
+                    # occurs before EOF on fast Windows workers as well.
+                    time.sleep(.02)
             except (BrokenPipeError, ConnectionResetError):
                 pass
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Media)
